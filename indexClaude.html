@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Gerencial de Projetos - TECK</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root{--bg:#0b1220;--panel:#131c2e;--panel2:#18233a;--line:#26334d;--tx:#eef2f9;--tx2:#8fa0bd;--accent:#4f8cff;
+--Vermelho:#ef5350;--Verde:#26b67a;--Amarelo:#f5a524;--Finalizado:#4f8cff;--Sem:#64748b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+.wrap{max-width:1500px;margin:0 auto;padding:20px 20px 40px}
+button,select,input{font:inherit;color:inherit}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.3px}
+.sub{color:var(--tx2);font-size:13px;margin-top:2px}
+.btn{background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+.btn:hover{border-color:var(--accent)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.kpis{display:grid;grid-template-columns:1.3fr repeat(5,1fr);gap:10px;margin-bottom:10px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;border-left:4px solid var(--c,var(--line))}
+.kpi.on{background:var(--panel2);box-shadow:0 0 0 1px var(--c,var(--accent))}
+.kpi b{display:block;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi span{color:var(--tx2);font-size:12px}
+.dist{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--panel);margin-bottom:16px}
+.dist i{display:block;height:100%}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0}
+.filters select,.filters input{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:170px}
+.filters input{flex:1;min-width:220px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;overflow-x:auto}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:10px 16px;color:var(--tx2);cursor:pointer;font-weight:600;white-space:nowrap}
+.tab.on{color:var(--tx);border-color:var(--accent)}
+.view{display:none}.view.on{display:block}
+.topic{margin-bottom:22px}
+.topic h2{font-size:15px;margin:0 0 8px;display:flex;align-items:center;gap:10px}
+.topic h2 small{color:var(--tx2);font-weight:400;font-size:12px}
+.dots{display:flex;gap:3px}.dots i{width:9px;height:9px;border-radius:50%}
+details.p{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:8px;margin-bottom:6px}
+details.p[open]{background:var(--panel2)}
+details.p summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(220px,2.2fr) 1.2fr 1.4fr 1.5fr;gap:12px;align-items:center;padding:10px 14px}
+details.p summary::-webkit-details-marker{display:none}
+.pn{font-weight:600}
+.mut{color:var(--tx2);font-size:12px}
+.chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#223152;margin:1px 3px 1px 0;white-space:nowrap}
+.chip.h{background:#3a2f12;color:#f7c25b}.chip.r{background:#103b2c;color:#58d8a1}
+.chip.risk{background:#4a1d1d;color:#ff8f8c}.chip.dec{background:#3b2a4d;color:#c9a2ff}
+.badge{display:inline-block;padding:2px 9px;border-radius:5px;font-size:11px;font-weight:700;color:#fff;background:var(--c)}
+.det{padding:4px 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.det div{font-size:13px}.det label{display:block;color:var(--tx2);font-size:11px;margin-bottom:2px}
+.late{color:#ff8f8c;font-weight:700}
+.empty{padding:40px;text-align:center;color:var(--tx2)}
+/* cronograma */
+.gscroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.grow{display:grid;align-items:center;border-bottom:1px solid var(--line);min-height:36px}
+.grow.hd{position:sticky;top:0;background:var(--panel2);font-size:11px;color:var(--tx2);text-align:center}
+.grow .nm{padding:6px 12px;font-size:12px;position:sticky;left:0;background:var(--panel);z-index:2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.grow.hd .nm{background:var(--panel2)}
+.grow.tp{background:#0f1830;font-weight:700;font-size:12px;color:var(--accent)}.grow.tp .nm{background:#0f1830}
+.wk{padding:6px 2px;border-left:1px solid var(--line);height:100%}.wk.now{background:rgba(79,140,255,.13);color:var(--tx)}
+.bar{height:20px;border-radius:5px;font-size:10px;font-weight:700;padding:0 6px;display:flex;align-items:center;justify-content:flex-end;color:#fff;background:var(--c);opacity:.9;margin:0 2px}
+.bar.one{justify-content:center}
+/* equipe */
+.team{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.tc{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.tc h3{margin:0;font-size:15px;display:flex;justify-content:space-between;gap:8px}
+.tb{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--bg);margin:10px 0}
+.tb i{display:block}
+/* tabela */
+.tw{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th{position:sticky;top:0;background:var(--panel2);text-align:left;padding:9px 10px;cursor:pointer;white-space:nowrap;border-bottom:1px solid var(--line)}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;background:var(--panel)}
+td.w{min-width:260px}
+
+/* executivo */
+.al{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:14px}
+.ac{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;border-top:3px solid var(--c)}
+.ac b{font-size:26px;display:block;line-height:1.1;color:var(--c)}.ac span{font-size:12px;color:var(--tx2)}
+.ac em{display:block;font-style:normal;font-size:11px;color:var(--tx2);margin-top:6px;border-top:1px solid var(--line);padding-top:5px}
+.gr{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin-bottom:12px}
+.pn2{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.pn2 h3{margin:0 0 2px;font-size:14px}.pn2 .mut{margin-bottom:12px}
+.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+@media(max-width:1000px){.c4,.c5,.c6,.c7,.c8{grid-column:span 12}}
+.dn{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.lg div{display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0}.lg i{width:10px;height:10px;border-radius:3px;background:var(--c)}
+.lg b{margin-left:auto;padding-left:14px;font-variant-numeric:tabular-nums}
+.hr{display:grid;grid-template-columns:120px 1fr 28px;gap:8px;align-items:center;margin:6px 0;font-size:12px}
+.hr .nm2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hs{display:flex;height:16px;border-radius:4px;overflow:hidden;background:var(--bg)}
+.hs i{display:block;font-style:normal;font-size:10px;font-weight:700;text-align:center;line-height:16px;color:#fff}
+.cols{display:flex;gap:8px;align-items:flex-end;height:190px}
+.col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;height:100%;text-align:center;font-size:11px;color:var(--tx2)}
+.col .st{display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden}
+.col .st i{display:block;font-style:normal;color:#fff;font-size:10px;font-weight:700;line-height:16px}
+.col b{color:var(--tx);font-size:13px}
+.col.v .st{outline:1px dashed var(--Vermelho)}
+.ov{display:grid;grid-template-columns:130px 1fr 190px;gap:10px;align-items:center;margin:7px 0;font-size:12px}
+.ov .tr{height:18px;background:var(--bg);border-radius:4px;overflow:hidden}.ov .tr i{display:block;height:100%;background:var(--c)}
+.lvl{display:inline-block;padding:1px 8px;border-radius:5px;font-size:11px;font-weight:700;color:#111;background:var(--c)}
+.hot{display:flex;gap:14px;align-items:center;background:#2a1519;border:1px solid #6b2a30;border-radius:10px;padding:12px 16px;margin-bottom:12px;flex-wrap:wrap}
+.hot b{font-size:20px}.hot .mut{margin:0}
+@media(max-width:700px){.ov{grid-template-columns:90px 1fr}.ov>:last-child{grid-column:1/-1}}
+.fg{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.fc{display:flex;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-left:4px solid var(--Verde);border-radius:8px;padding:8px 12px}
+.av{width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.upl{margin-top:26px;color:var(--tx2);font-size:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(3,1fr)}details.p summary{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:no-preference){.bar,.kpi{transition:opacity .15s}}
+</style>
+</head>
+<body>
+<div class="wrap" id="cap">
+  <div class="top">
+    <div><h1>Acompanhamento Executivo de Projetos</h1><div class="sub" id="sub"></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap" data-nocap>
+      <label class="btn" for="xl">Atualizar com Excel</label><input type="file" id="xl" accept=".xlsx,.xls" hidden>
+      <button class="btn pri" id="print">Exportar print</button>
+    </div>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="dist" id="dist"></div>
+  <div class="filters" data-nocap>
+    <select id="fTopic"></select><select id="fResp"></select><select id="fDev"></select>
+    <input id="fQ" type="search" placeholder="Buscar projeto, pessoa, marco, observação…">
+    <button class="btn" id="clear">Limpar filtros</button>
+  </div>
+  <div class="tabs" role="tablist" data-nocap>
+    <button class="tab on" data-v="v0">Visão executiva</button>
+    <button class="tab" data-v="v1">Projetos por tópico</button>
+    <button class="tab" data-v="v2">Cronograma semanal</button>
+    <button class="tab" data-v="v3">Equipe e carga</button>
+    <button class="tab" data-v="v4">Tabela completa</button>
+  </div>
+  <div class="view on" id="v0"></div>
+  <div class="view" id="v1"></div>
+  <div class="view" id="v2"></div>
+  <div class="view" id="v3"></div>
+  <div class="view" id="v4"></div>
+  <div class="upl" id="upl"></div>
+</div>
+<script>
+const DATA=[{"topico": "ABC", "projeto": "KitDoc", "responsavel": "Leandro", "status": "Vermelho", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-20", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "2026-10-20", "sm": "Patricio", "dev1": "Gabriel Rodrigues", "dev2": "-", "observacao": "Juliana ficou de testar as novas variaveis"}, {"topico": "ABC", "projeto": "Integrar FrontConsig V2 com função ABC", "responsavel": "Leandro", "status": "Vermelho", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-23", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-23", "producao_iso": "2026-10-26", "sm": "Ferrari", "dev1": "Edmario", "dev2": "-", "observacao": "Pendente agr só a api de mudar esteira da ABC - Juliana"}, {"topico": "ABC", "projeto": "Módulo de Cartão - Stark ( Tela Mockada )", "responsavel": "Matheus", "status": "Vermelho", "predecessor": "", "marco": "Telas mockadas até decisão da processadora (Stark ou BIZ)", "prazo_iso": "", "risco": "", "decisao": "", "obs": "Nova processadora Stark https://docs.starkinfra.com/api#tech-support", "homologacao_iso": "2026-10-30", "producao_iso": "2026-11-03", "sm": "Eric", "dev1": "Wendeel", "dev2": "Luiz", "observacao": "Não temos o ambiente de teste da Stark - Sandbox"}, {"topico": "ABC", "projeto": "Único", "responsavel": "Matheus", "status": "Vermelho", "predecessor": "Gatilhos Disparo Link / Troca de Esteira / FrontConsig V1 - Módulo Auditoria", "marco": "Produção", "prazo_iso": "2026-10-09", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-09", "producao_iso": "2026-10-23", "sm": "-", "dev1": "Renan", "dev2": "Amaral", "observacao": "Renan passar para acionar a mudança de esteira"}, {"topico": "ABC", "projeto": "Mérito", "responsavel": "Matheus", "status": "Vermelho", "predecessor": "", "marco": "Homologação", "prazo_iso": "2026-11-02", "risco": "", "decisao": "", "obs": "Patrick Validar com Dani se vai ter recalculo do lado da Mérito e quem vai pagar a operação, documento pdf deve ser com assinatura", "homologacao_iso": "2026-10-30", "producao_iso": "", "sm": "-", "dev1": "Amaral", "dev2": "-", "observacao": "Payload atualizado c as Despesas pela Merito. Ajuste teck. Envio para Merito para testar"}, {"topico": "ABC", "projeto": "Projeto ABC", "responsavel": "Patricio", "status": "Vermelho", "predecessor": "", "marco": "Produção", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "Patricio", "dev1": "-", "dev2": "-", "observacao": ""}, {"topico": "ABC", "projeto": "Webhook ABC", "responsavel": "Renan", "status": "Finalizado", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-13", "risco": "Pendencias API função", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "2026-10-13", "sm": "-", "dev1": "-", "dev2": "-", "observacao": ""}, {"topico": "ABC", "projeto": "Banco de Dados ABC", "responsavel": "Renan", "status": "Finalizado", "predecessor": "Webhook ABC", "marco": "", "prazo_iso": "2026-10-02", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "2026-10-02", "sm": "-", "dev1": "-", "dev2": "-", "observacao": ""}, {"topico": "ABC", "projeto": "Consulta de Margem e Averbação na ABC - na Mascara e Esteira (Piloto Siape)", "responsavel": "Renan", "status": "Vermelho", "predecessor": "Banco de Dados ABC", "marco": "Produção", "prazo_iso": "2026-10-23", "risco": "", "decisao": "", "obs": "Pegar a Lista de CPFs com autorização e inserir as propsotas no função", "homologacao_iso": "2026-10-23", "producao_iso": "", "sm": "-", "dev1": "Renan", "dev2": "-", "observacao": "Desenvolvimento OK = Falta a averbacao - Juliana"}, {"topico": "ABC", "projeto": "FrontConsig V1 - Módulo Auditoria", "responsavel": "Renan", "status": "Vermelho", "predecessor": "Banco de Dados ABC", "marco": "Avaliar Migração de Sistema", "prazo_iso": "2026-10-23", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-11-02", "producao_iso": "2026-11-12", "sm": "Ferrari", "dev1": "Edmario", "dev2": "Gabriel Rodrigues", "observacao": ""}, {"topico": "Autbank", "projeto": "Paliativo - TED", "responsavel": "Patricio", "status": "Vermelho", "predecessor": "", "marco": "Homologação", "prazo_iso": "2026-10-13", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-13", "producao_iso": "", "sm": "-", "dev1": "Nei", "dev2": "-", "observacao": "Estamos usando o serviço do Caspar para consultar as esteiras e observações com os dados bancários. \nNei esta com algumas dificuldades para acertar a rotina. Podemos ir diretamente nas APIs, mas precisaremos de aprovação ou aguardar o Gateway do Renan."}, {"topico": "Autbank", "projeto": "Paliativo - PIX", "responsavel": "Patricio", "status": "Vermelho", "predecessor": "Paliativo - TED", "marco": "Aguardando Paliativo - TED", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "-", "dev1": "Nei", "dev2": "-", "observacao": "Nei aguarda o chamado aberto para o Yuri para acessar o Serviço (Auttbank)"}, {"topico": "Autbank", "projeto": "Paliativo - Monitoramento PIX Luby", "responsavel": "Renan", "status": "Vermelho", "predecessor": "", "marco": "", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "-", "dev1": "Nei", "dev2": "-", "observacao": "Aguardando KickOff Patrick"}, {"topico": "Automações", "projeto": "Contratos Automaticos no Gestão de Carteira", "responsavel": "Leandro", "status": "Vermelho", "predecessor": "", "marco": "Em homologação", "prazo_iso": "2026-09-29", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-09-29", "producao_iso": "2026-10-30", "sm": "Neri", "dev1": "Gabriel", "dev2": "Thierry", "observacao": "Homologado pelo Neri em producao"}, {"topico": "Automações", "projeto": "Sonar", "responsavel": "Patricio", "status": "Vermelho", "predecessor": "", "marco": "Revisar os Quality Gate e aplicar no Lab", "prazo_iso": "2026-10-16", "risco": "", "decisao": "Sim", "obs": "Implementar no projeto Tecksign após aprovação dos parametros", "homologacao_iso": "2026-10-23", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "Quality Gates Implementado no escritorio Virutal. \nAWS KIRO, aguardamos o plano de aplicação pela time de Devops"}, {"topico": "Automações", "projeto": "Checklist", "responsavel": "Renan", "status": "Vermelho", "predecessor": "", "marco": "", "prazo_iso": "2026-10-22", "risco": "API Proposta Detalhada V2", "decisao": "", "obs": "", "homologacao_iso": "2026-10-22", "producao_iso": "2026-11-03", "sm": "Felipe", "dev1": "Lucas", "dev2": "Guilherme", "observacao": "Aguardando DetalheV2 em producao do Funcao - Caspar"}, {"topico": "Automações", "projeto": "Ajustes Tela Averbação", "responsavel": "Renan", "status": "Verde", "predecessor": "", "marco": "", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "2026-10-23", "sm": "-", "dev1": "Thalia", "dev2": "-", "observacao": "Projeto Beto - GovSP. Detalhe da compra de divida está com problema no Funcao - Caspar está vendo"}, {"topico": "AWS", "projeto": "Redução de Custo Teck", "responsavel": "Ferrari", "status": "Verde", "predecessor": "", "marco": "Andamento", "prazo_iso": "", "risco": "", "decisao": "", "obs": "Redução de $ 17 k mensal", "homologacao_iso": "", "producao_iso": "2026-11-15", "sm": "Ferrari", "dev1": "Sales", "dev2": "-", "observacao": ""}, {"topico": "AWS", "projeto": "Redução de Custo Capital", "responsavel": "Ferrari", "status": "Verde", "predecessor": "", "marco": "Andamento", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "2026-11-30", "sm": "-", "dev1": "-", "dev2": "-", "observacao": ""}, {"topico": "ERP", "projeto": "Gestão de Carteira v2", "responsavel": "Leandro", "status": "Verde", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-30", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-20", "producao_iso": "2026-10-30", "sm": "Neri", "dev1": "Gabriel", "dev2": "Thierry", "observacao": ""}, {"topico": "ERP", "projeto": "Sistema do RH", "responsavel": "Leandro", "status": "Vermelho", "predecessor": "", "marco": "Iniciar Desenvolvimento", "prazo_iso": "", "risco": "Infra", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "Felipe", "dev1": "Gabriel Rodrigues", "dev2": "-", "observacao": "Stand-By"}, {"topico": "ERP", "projeto": "Esteiras Front", "responsavel": "Patricio", "status": "Verde", "predecessor": "", "marco": "Aguardando decisões Kiro", "prazo_iso": "2026-09-29", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-11-02", "producao_iso": "", "sm": "Patrick", "dev1": "-", "dev2": "-", "observacao": ""}, {"topico": "FrontConsig v1", "projeto": "RH / JURIDICO - Integrar com TeckSign", "responsavel": "Leandro", "status": "Vermelho", "predecessor": "", "marco": "Homologação", "prazo_iso": "2026-10-20", "risco": "", "decisao": "", "obs": "Ao cadastrar o funcionário no front, fazer o envio da assinatura automaticamente e ao assinar gravar no front o contrato assinado", "homologacao_iso": "2026-10-20", "producao_iso": "2026-10-27", "sm": "Samuel", "dev1": "Santos", "dev2": "-", "observacao": ""}, {"topico": "FrontConsig V2", "projeto": "Discador", "responsavel": "Leandro", "status": "Verde", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-30", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-16", "producao_iso": "2026-10-21", "sm": "Samuel", "dev1": "Guilherme", "dev2": "-", "observacao": ""}, {"topico": "FrontConsig V2", "projeto": "Ajuste Convênio e Relatório Gerencial", "responsavel": "Leandro", "status": "Finalizado", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-09", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "Samuel", "dev1": "Guilherme", "dev2": "-", "observacao": ""}, {"topico": "FrontConsig V2", "projeto": "Ajuste Saldo Devedor", "responsavel": "Leandro", "status": "Finalizado", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-01", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "Samuel", "dev1": "Thalia", "dev2": "Edmario", "observacao": ""}, {"topico": "FrontConsig V2", "projeto": "Ajustar Mensagens para Operador", "responsavel": "Ferrari", "status": "Verde", "predecessor": "", "marco": "Desenvolver", "prazo_iso": "2026-11-03", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-27", "producao_iso": "2026-11-03", "sm": "Ferrari", "dev1": "Edmario", "dev2": "-", "observacao": ""}, {"topico": "FrontConsig V2", "projeto": "Saldo Devedor - Melhorias - Dta de Atualizacao", "responsavel": "Ferrari", "status": "Verde", "predecessor": "", "marco": "Desenvolver", "prazo_iso": "2026-11-03", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-23", "producao_iso": "2026-11-03", "sm": "Ferrari", "dev1": "Edmario", "dev2": "Thalia", "observacao": ""}, {"topico": "FrontConsig V2", "projeto": "RPA / Projeto BloqList - FunÇão", "responsavel": "Ferrari", "status": "Verde", "predecessor": "", "marco": "Homologação", "prazo_iso": "2026-10-27", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-21", "producao_iso": "2026-11-03", "sm": "Samuel", "dev1": "Thalia", "dev2": "-", "observacao": ""}, {"topico": "FrontConsig V2", "projeto": "Módulo Consultar Averbação – Separação entre Margem Livre e Compra de Dívida + Relatórios", "responsavel": "Ferrari", "status": "Verde", "predecessor": "", "marco": "Homologação", "prazo_iso": "2026-10-21", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-21", "producao_iso": "2026-10-21", "sm": "Samuel", "dev1": "Thalia", "dev2": "-", "observacao": "Em Producao - Projeto Beto - GovSP. Detalhe da compra de divida está com problema no Funcao - Caspar está vendo"}, {"topico": "Função", "projeto": "Montar o BD do Funcao na Teck - eliminar a dependencia do Caspar Capital", "responsavel": "Renan", "status": "Vermelho", "predecessor": "", "marco": "Homologação", "prazo_iso": "2026-10-23", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-23", "producao_iso": "", "sm": "-", "dev1": "Renan", "dev2": "-", "observacao": "Stand-by devido ao projeto ABC"}, {"topico": "Interno", "projeto": "ERP", "responsavel": "Leandro e Matheus", "status": "Amarelo", "predecessor": "", "marco": "Aguardando Infra", "prazo_iso": "", "risco": "Infra", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": ""}, {"topico": "Interno", "projeto": "Grafana", "responsavel": "Patricio", "status": "Vermelho", "predecessor": "", "marco": "Voltar para backlog", "prazo_iso": "", "risco": "", "decisao": "", "obs": "Iniciar com Autbank. Monitorar Disponibilidade, Performance, Erros/Falhas, Segurança/comportamento anormal", "homologacao_iso": "", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": ""}, {"topico": "Interno", "projeto": "Governaça IA - Uso descontrolado", "responsavel": "Todos", "status": "Vermelho", "predecessor": "", "marco": "", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": ""}, {"topico": "Interno", "projeto": "Acessos ao reader2 Capital", "responsavel": "Leandro e Yuri", "status": "Verde", "predecessor": "", "marco": "", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "Lentidao do banco do Caspar"}, {"topico": "Kit Doc", "projeto": "Gravar dados CCB - na Geração (controle de versionamento)", "responsavel": "Leandro", "status": "Vermelho", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-23", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-23", "producao_iso": "", "sm": "Amaral", "dev1": "Cadu", "dev2": "-", "observacao": "23-10 homologar com o solicitante"}, {"topico": "Kit Doc", "projeto": "Montar Interface de montagem de layout  de documento", "responsavel": "Leandro", "status": "Vermelho", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-23", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-23", "producao_iso": "", "sm": "Amaral", "dev1": "Cadu", "dev2": "-", "observacao": "23-10 homologar com o solicitante"}, {"topico": "Portal Teck", "projeto": "Substituição do Serviço de PDF - Caspar", "responsavel": "Matheus", "status": "Verde", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-21", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-20", "producao_iso": "2026-10-21", "sm": "Leandro", "dev1": "Wendeel", "dev2": "Sales", "observacao": "Acompanhamento pós implantação"}, {"topico": "Regulatórios", "projeto": "KYC - na esteira do Funçao - Landim / Alberto", "responsavel": "Renan", "status": "Finalizado", "predecessor": "", "marco": "Produção", "prazo_iso": "2026-10-07", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "2026-10-07", "sm": "-", "dev1": "Renan", "dev2": "Thalia", "observacao": ""}, {"topico": "Regulatórios", "projeto": "Melhorias KYC", "responsavel": "Renan", "status": "Verde", "predecessor": "", "marco": "", "prazo_iso": "2026-10-27", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "2026-10-21", "sm": "Samuel", "dev1": "Thalia", "dev2": "-", "observacao": "Em producao"}, {"topico": "Tecksign", "projeto": "TeckSign", "responsavel": "Matheus", "status": "Verde", "predecessor": "", "marco": "Fechar Multi Signatarios", "prazo_iso": "2026-10-22", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-23", "producao_iso": "2026-10-26", "sm": "Eric", "dev1": "Tarcio", "dev2": "Gustavo", "observacao": "Multi Signatarios"}, {"topico": "ÚNICO", "projeto": "Substituir a UNICO no portal teck pelo Tecksign", "responsavel": "Matheus", "status": "Vermelho", "predecessor": "", "marco": "Homologação", "prazo_iso": "2026-10-30", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "2026-10-30", "sm": "Amaral", "dev1": "Ricardo", "dev2": "Gustavo", "observacao": ""}, {"topico": "ÚNICO", "projeto": "OCR - Leitura do RG ( Assinado ou não ) movimenta a esteira", "responsavel": "Matheus", "status": "Vermelho", "predecessor": "", "marco": "Ajustes com a Operação durante a Produção", "prazo_iso": "2026-10-14", "risco": "", "decisao": "", "obs": "Agregar com os outros 2 pedidos da tamyres e cancelar a proposta no portal e no função. Só pode ter um link aprovado; Para gerar um novo link, os links anteriores devem estar cancelados; Propostas Canceladas não mostram os documentos; Usar o Sha-256 do arquivo para saber se é a mesma versão", "homologacao_iso": "", "producao_iso": "2026-10-23", "sm": "Patricio", "dev1": "Amaral", "dev2": "Renan", "observacao": "Em producao - Hoje c Gemini... Precisa colocar outra em paralelo"}, {"topico": "ÚNICO", "projeto": "Adequar o fluxo de assinatura para os indices de fraude", "responsavel": "Matheus", "status": "Sem status", "predecessor": "", "marco": "", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "Patricio", "dev1": "Amaral", "dev2": "-", "observacao": "Pedido da Godoy / Tamires - 22-10 - reuniao com as meninas para validar o fluxo"}, {"topico": "Portal Teck", "projeto": "Portal de Boleto para o Portal Teck", "responsavel": "Matheus", "status": "Sem status", "predecessor": "", "marco": "", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-27", "producao_iso": "2026-10-29", "sm": "Amaral", "dev1": "Samuel", "dev2": "-", "observacao": "Maysa - apresentado pelo Amaral e solicitou melghorias"}, {"topico": "Portal Teck", "projeto": "Solis CLT - Fundo de Passagem", "responsavel": "Matheus", "status": "Sem status", "predecessor": "", "marco": "", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-19", "producao_iso": "2026-11-03", "sm": "Eduardo", "dev1": "Cadu", "dev2": "-", "observacao": "Em homologacao - Bruno aguardando o retorno da Solis dos testes efetuados"}, {"topico": "Nexus", "projeto": "Nexus Etapa 01", "responsavel": "Ferrari", "status": "Sem status", "predecessor": "", "marco": "", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "2026-10-01", "producao_iso": "2026-11-03", "sm": "Eric", "dev1": "-", "dev2": "-", "observacao": ""}, {"topico": "APP", "projeto": "Checklist Lançamento Apus", "responsavel": "Patricio", "status": "Sem status", "predecessor": "", "marco": "Volta com o Alberto sobre alguns itens de compliance", "prazo_iso": "2026-10-23", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "2026-10-23", "sm": "Patricio", "dev1": "Yuri", "dev2": "-", "observacao": "Yuri e Paulos tocando o checklist"}, {"topico": "Boletos", "projeto": "Emissao de Boletos Capital", "responsavel": "Patricio", "status": "Sem status", "predecessor": "", "marco": "Paulo fazer a instalacao dos modulos e fazer treinamento", "prazo_iso": "", "risco": "", "decisao": "", "obs": "", "homologacao_iso": "", "producao_iso": "", "sm": "Patricio", "dev1": "-", "dev2": "-", "observacao": "Ao finalizar o PIX , o Paulo fazer a instalacao dos modulos e fazer treinamento ( Patrick ciente )"}];
+let TEAM=[{"full": "Samuel de Melo Santos Nascimento", "nick": "Samuel"}, {"full": "Eduardo dos Santos", "nick": "Eduardo"}, {"full": "Gabriel Nobrega Neri", "nick": "Neri"}, {"full": "Eric Santos Castro", "nick": "Eric"}, {"full": "Lucas Silva Araujo", "nick": "Lucas BI"}, {"full": "Ricardo Henrique Leal Maciel", "nick": "Ricardo"}, {"full": "Gabriel de Oliveira Alves", "nick": "Gabriel"}, {"full": "Edmário Oliveira de Araujo", "nick": "Edmario"}, {"full": "Djacy Neto", "nick": "Djacy"}, {"full": "Yuri Mussi", "nick": "Yuri"}, {"full": "Anderson Pereira de Sales", "nick": "Sales"}, {"full": "Lucas Santos da Silva", "nick": "Santos"}, {"full": "Thalia da Silva", "nick": "Thalia"}, {"full": "Filipe Tárcio Herculano de Sousa", "nick": "Tarcio"}, {"full": "Paulo Roberto Moreira", "nick": "Paulo"}, {"full": "Samuel Pereira Brandão", "nick": "Samuel Dev"}, {"full": "Nei Agripino Delfino Neto", "nick": "Nei"}, {"full": "Leandro Gustavo Ferreira de Souza Almeida", "nick": "Leandro"}, {"full": "Matheus Amaral Miranda", "nick": "Amaral"}, {"full": "Patrício Godoy Flendes Pinto", "nick": "Patricio"}, {"full": "Renan Gonçalves Queiroz SIlva", "nick": "Renan"}, {"full": "Lucas de Matos Harzer Lopes", "nick": "Lucas"}, {"full": "Bruno Moura", "nick": "Bruno"}, {"full": "João Vitor de Souza Siqueira", "nick": "Joao"}, {"full": "Carlos Vaz", "nick": "Cadu"}, {"full": "Gabriel Rodrigues da Silva", "nick": "Gabriel Rodrigues"}, {"full": "Fernando Francisco de Souza", "nick": "Fernando"}, {"full": "Thierry Esteves Lima", "nick": "Thierry"}, {"full": "Wendeel Marinho Butel", "nick": "Wendeel"}, {"full": "Luiz Henrique", "nick": "Luiz"}, {"full": "Guilherme Carneiro Carvalho", "nick": "Guilherme"}, {"full": "Enzo", "nick": "Enzo"}, {"full": "Felipe Pinheiro de Freitas", "nick": "Felipe"}];
+const ST=['Vermelho','Amarelo','Verde','Finalizado','Sem status'];
+const COL={Vermelho:'var(--Vermelho)',Amarelo:'var(--Amarelo)',Verde:'var(--Verde)',Finalizado:'var(--Finalizado)','Sem status':'var(--Sem)'};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let P=DATA,F={topic:'',resp:'',dev:'',q:'',st:''},sortK='',sortAsc=true,UPDATED='Planilha de 21/10/2026';
+const today=new Date();today.setHours(0,0,0,0);
+const dt=iso=>iso?new Date(iso+'T00:00:00'):null;
+const fmt=iso=>iso?dt(iso).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'';
+const fmtY=iso=>iso?dt(iso).toLocaleDateString('pt-BR'):'';
+const people=p=>[p.sm,p.dev1,p.dev2].filter(x=>x&&x!=='-');
+const dtEnd=p=>p.producao_iso||p.homologacao_iso||p.prazo_iso||'';
+
+function filtered(){
+  const q=F.q.toLowerCase();
+  let r=P.filter(p=>(!F.topic||p.topico===F.topic)&&(!F.resp||p.responsavel===F.resp)&&
+   (!F.dev||people(p).includes(F.dev))&&(!F.st||p.status===F.st)&&
+   (!q||Object.values(p).join(' ').toLowerCase().includes(q)));
+  if(sortK)r=[...r].sort((a,b)=>{const x=String(a[sortK]||''),y=String(b[sortK]||'');return(x<y?-1:x>y?1:0)*(sortAsc?1:-1)});
+  return r;
+}
+function opts(id,label,vals,cur){$(id).innerHTML=`<option value="">${label}</option>`+[...new Set(vals)].filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt')).map(v=>`<option ${v===cur?'selected':''}>${esc(v)}</option>`).join('')}
+function fillFilters(){
+  opts('fTopic','Todos os tópicos',P.map(p=>p.topico),F.topic);
+  opts('fResp','Todos os responsáveis',P.map(p=>p.responsavel),F.resp);
+  opts('fDev','Toda a equipe (SM / Dev)',P.flatMap(people),F.dev);
+}
+function kpis(list){
+  const c=s=>list.filter(p=>p.status===s).length;
+  const items=[['','Total de projetos',list.length,'var(--accent)'],...ST.map(s=>[s,s==='Vermelho'?'Críticos (vermelho)':s==='Verde'?'Em dia (verde)':s==='Amarelo'?'Atenção (amarelo)':s==='Finalizado'?'Finalizados':'Sem status definido',c(s),COL[s]])];
+  $('kpis').innerHTML=items.map(([s,l,n,col])=>`<div class="kpi ${F.st===s&&s?'on':''}" style="--c:${col}" data-s="${s}" title="Clique para filtrar"><b>${n}</b><span>${l}</span></div>`).join('');
+  $('dist').innerHTML=ST.map(s=>`<i style="width:${list.length?c(s)/list.length*100:0}%;background:${COL[s]}" title="${s}: ${c(s)}"></i>`).join('');
+  $('sub').textContent=`${UPDATED} · ${list.length} de ${P.length} projetos exibidos · gerado em ${today.toLocaleDateString('pt-BR')}`;
+}
+function dateChips(p){
+  let h='';
+  if(p.homologacao_iso)h+=`<span class="chip h">Homolog. ${fmt(p.homologacao_iso)}</span>`;
+  if(p.producao_iso){const late=p.status!=='Finalizado'&&dt(p.producao_iso)<today;h+=`<span class="chip r ${late?'late':''}">Produção ${fmt(p.producao_iso)}</span>`}
+  if(!h&&p.prazo_iso)h=`<span class="chip">Prazo ${fmt(p.prazo_iso)}</span>`;
+  return h||'<span class="mut">Sem data definida</span>';
+}
+function v1(list){
+  if(!list.length)return $('v1').innerHTML='<div class="empty">Nenhum projeto para os filtros atuais.</div>';
+  const g={};list.forEach(p=>(g[p.topico]=g[p.topico]||[]).push(p));
+  $('v1').innerHTML=Object.keys(g).sort((a,b)=>a.localeCompare(b,'pt')).map(t=>`
+   <section class="topic"><h2>${esc(t)} <small>${g[t].length} projeto(s)</small><span class="dots">${g[t].map(p=>`<i style="background:${COL[p.status]}" title="${esc(p.projeto)}: ${p.status}"></i>`).join('')}</span></h2>
+   ${g[t].map(p=>`<details class="p" style="--c:${COL[p.status]}"><summary>
+     <div><div class="pn">${esc(p.projeto)}</div><div class="mut">Resp.: ${esc(p.responsavel)}</div></div>
+     <div><span class="badge" style="--c:${COL[p.status]}">${p.status}</span></div>
+     <div>${dateChips(p)}</div>
+     <div class="mut">${people(p).map(esc).join(' · ')||'Equipe não atribuída'}</div></summary>
+     <div class="det">
+      <div><label>Próximo marco</label>${esc(p.marco)||'-'}</div>
+      <div><label>Predecessor</label>${esc(p.predecessor)||'-'}</div>
+      <div><label>Risco</label>${p.risco?`<span class="chip risk">${esc(p.risco)}</span>`:'-'}</div>
+      <div><label>Decisão em aberto</label>${p.decisao?`<span class="chip dec">${esc(p.decisao)}</span>`:'-'}</div>
+      <div><label>Observação</label>${esc(p.observacao)||'-'}</div>
+      <div><label>OBS</label>${esc(p.obs)||'-'}</div>
+     </div></details>`).join('')}</section>`).join('');
+}
+function v2(list){
+  const dated=list.filter(p=>p.homologacao_iso||p.producao_iso);
+  const nod=list.length-dated.length;
+  if(!dated.length)return $('v2').innerHTML='<div class="empty">Nenhum projeto com data para os filtros atuais.</div>';
+  const ds=dated.flatMap(p=>[p.homologacao_iso,p.producao_iso]).filter(Boolean).map(dt);
+  let s=new Date(Math.min(...ds,today));s.setDate(s.getDate()-s.getDay());
+  const e=new Date(Math.max(...ds));const W=[];
+  for(let c=new Date(s);c<=e||W.length<5;c.setDate(c.getDate()+7)){const a=new Date(c),b=new Date(c);b.setDate(b.getDate()+6);W.push({a,b,now:today>=a&&today<=b})}
+  const idx=d=>W.findIndex(w=>d>=w.a&&d<=w.b);
+  const cols=`230px repeat(${W.length},minmax(78px,1fr))`;
+  let h=`<div class="gscroll"><div class="grow hd" style="grid-template-columns:${cols}"><div class="nm">Projeto</div>${W.map(w=>`<div class="wk ${w.now?'now':''}">${w.a.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}${w.now?'<br><b>hoje</b>':''}</div>`).join('')}</div>`;
+  const g={};dated.forEach(p=>(g[p.topico]=g[p.topico]||[]).push(p));
+  Object.keys(g).sort((a,b)=>a.localeCompare(b,'pt')).forEach(t=>{
+    h+=`<div class="grow tp" style="grid-template-columns:${cols}"><div class="nm" style="grid-column:1/-1;position:static">${esc(t)}</div></div>`;
+    g[t].forEach(p=>{
+      const a=dt(p.homologacao_iso||p.producao_iso),b=dt(p.producao_iso||p.homologacao_iso);
+      const i=idx(a),j=Math.max(idx(b),i);
+      const lbl=p.homologacao_iso&&p.producao_iso?`${fmt(p.homologacao_iso)} → ${fmt(p.producao_iso)}`:(p.producao_iso?`Prod. ${fmt(p.producao_iso)}`:`Homolog. ${fmt(p.homologacao_iso)}`);
+      h+=`<div class="grow" style="grid-template-columns:${cols}"><div class="nm" title="${esc(p.projeto)}">${esc(p.projeto)}</div>
+      ${W.map((w,k)=>`<div class="wk ${w.now?'now':''}" style="grid-row:1;grid-column:${k+2}"></div>`).join('')}
+      <div class="bar ${i===j?'one':''}" style="grid-row:1;grid-column:${i+2}/${j+3};--c:${COL[p.status]}" title="${esc(p.projeto)} — ${lbl}">${lbl}</div></div>`});
+  });
+  $('v2').innerHTML=h+'</div>'+(nod?`<p class="mut">${nod} projeto(s) filtrado(s) sem data de homologação ou produção não aparecem no cronograma.</p>`:'');
+}
+const WT={Vermelho:1.5,Amarelo:1.25,Verde:1,'Sem status':1,Finalizado:0};
+const LV=[['Normal','var(--Verde)'],['Alto','var(--Amarelo)'],['Sobrecarregado','var(--Vermelho)']];
+function loads(list){const m={};
+  list.forEach(p=>{if(p.status==='Finalizado')return;
+    new Set([p.sm,p.dev1,p.dev2,...String(p.responsavel).split(/ e |,/).map(x=>x.trim())].filter(n=>n&&!['-','Todos','Não atribuído'].includes(n))).forEach(n=>{
+      const o=m[n]=m[n]||{n,k:0,idx:0,red:0,ps:[]};o.k++;o.idx+=WT[p.status];if(p.status==='Vermelho')o.red++;o.ps.push(p)})});
+  return Object.values(m).map(o=>({...o,lvl:o.idx>=10?2:o.idx>=5?1:0})).sort((a,b)=>b.idx-a.idx||a.n.localeCompare(b.n))}
+const sv=(s,x)=>`style="${x||''}${x?';':''}${s}"`;
+
+function freeList(){
+  const act=new Set(),fin=new Set();
+  P.forEach(p=>[p.sm,p.dev1,p.dev2,...String(p.responsavel).split(/ e |,/).map(x=>x.trim())].forEach(n=>{if(n&&!['-','Todos','Não atribuído'].includes(n))(p.status==='Finalizado'?fin:act).add(n)}));
+  const known=new Set(TEAM.map(c=>c.nick));
+  return{none:TEAM.filter(c=>!act.has(c.nick)&&!fin.has(c.nick)),done:TEAM.filter(c=>!act.has(c.nick)&&fin.has(c.nick)),
+   extra:[...new Set([...act,...fin])].filter(n=>!known.has(n)).sort(),total:TEAM.length}}
+function freePanel(cls){
+  const f=freeList();
+  const card=(c,tag)=>`<div class="fc"><div class="av">${esc(c.full.charAt(0))}</div><div><b>${esc(c.full)}</b><div class="mut" style="margin:0">${esc(c.nick)}${tag?' · '+tag:''}</div></div></div>`;
+  return `<div class="pn2 ${cls}"><h3>Colaboradores sem projeto atrelado</h3><div class="mut">${f.none.length} de ${f.total} colaboradores cadastrados não aparecem como SM, Dev ou Responsável em nenhum projeto${f.done.length?` · ${f.done.length} só em projetos já finalizados`:''}</div>
+   <div class="fg">${f.none.map(c=>card(c)).join('')||'<span class="mut">Todos os colaboradores estão alocados.</span>'}${f.done.map(c=>card(c,'só finalizados')).join('')}</div>
+   ${f.extra.length?`<div class="mut" style="margin:10px 0 0">Aparecem em projetos, mas não estão na aba Colaboradores: ${f.extra.map(esc).join(', ')}.</div>`:''}</div>`}
+function donut(list){const t=list.length||1,r=52,c=2*Math.PI*r;let off=0;
+  const seg=ST.map(s=>{const n=list.filter(p=>p.status===s).length,l=n/t*c;const e=n?`<circle r="${r}" cx="70" cy="70" fill="none" stroke-width="22" stroke-dasharray="${l} ${c-l}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)" style="stroke:${COL[s]}"/>`:'';off+=l;return e}).join('');
+  return `<svg viewBox="0 0 140 140" width="160" role="img" aria-label="Distribuição por status">${seg}<text x="70" y="70" text-anchor="middle" fill="#eef2f9" font-size="28" font-weight="700">${list.length}</text><text x="70" y="88" text-anchor="middle" fill="#8fa0bd" font-size="10">projetos</text></svg>`}
+function v0(list){
+  const act=list.filter(p=>p.status!=='Finalizado');
+  const venc=act.filter(p=>p.producao_iso&&dt(p.producao_iso)<today);
+  const lim=new Date(today);lim.setDate(lim.getDate()+14);
+  const prox=act.filter(p=>p.producao_iso&&dt(p.producao_iso)>=today&&dt(p.producao_iso)<=lim);
+  const risco=act.filter(p=>p.risco),dec=act.filter(p=>p.decisao),sd=act.filter(p=>!p.homologacao_iso&&!p.producao_iso);
+  const nm=a=>a.slice(0,3).map(p=>esc(p.projeto)).join(' · ')+(a.length>3?` +${a.length-3}`:'')||'—';
+  const al=[['Produção vencida',venc,'var(--Vermelho)','prazo de produção já passou'],['Entregas em 14 dias',prox,'var(--Finalizado)','produção prevista'],['Com risco declarado',risco,'var(--Amarelo)','projetos ativos'],['Decisão em aberto',dec,'#c9a2ff','aguardando definição'],['Sem data definida',sd,'var(--Sem)','sem homologação nem produção']];
+  let h=`<div class="al">${al.map(([l,a,c,d])=>`<div class="ac" style="--c:${c}"><b>${a.length}</b><span>${l} — ${d}</span><em>${nm(a)}</em></div>`).join('')}</div>`;
+  const L=loads(P),top=L[0],sob=L.filter(x=>x.lvl===2);
+  if(top)h+=`<div class="hot"><div><div class="mut">Mais sobrecarregado hoje</div><b>${esc(top.n)}</b></div><div class="mut" style="flex:1;min-width:240px">${top.k} projetos ativos, ${top.red} críticos · índice de carga ${top.idx.toFixed(1)}. ${sob.length} pessoa(s) acima do limite: ${sob.map(x=>esc(x.n)).join(', ')}.</div></div>`;
+  h+='<div class="gr">';
+  // saúde
+  h+=`<div class="pn2 c4"><h3>Saúde da carteira</h3><div class="mut">Projetos por status</div><div class="dn">${donut(list)}<div class="lg" style="flex:1;min-width:130px">${ST.map(s=>{const n=list.filter(p=>p.status===s).length;return`<div ${sv('--c:'+COL[s])}><i></i>${s}<b>${n} (${list.length?Math.round(n/list.length*100):0}%)</b></div>`}).join('')}</div></div></div>`;
+  // por tópico
+  const tp={};list.forEach(p=>(tp[p.topico]=tp[p.topico]||[]).push(p));
+  const tk=Object.keys(tp).sort((a,b)=>tp[b].length-tp[a].length),mx=Math.max(1,...tk.map(k=>tp[k].length));
+  h+=`<div class="pn2 c8"><h3>Status por tópico</h3><div class="mut">Quantidade de projetos e composição por status</div>${tk.map(k=>`<div class="hr"><span class="nm2" title="${esc(k)}">${esc(k)}</span><div class="hs" style="width:${tp[k].length/mx*100}%">${ST.map(s=>{const n=tp[k].filter(p=>p.status===s).length;return n?`<i style="flex:${n};background:${COL[s]}" title="${s}: ${n}">${n}</i>`:''}).join('')}</div><b>${tp[k].length}</b></div>`).join('')||'<div class="empty">Sem dados</div>'}</div>`;
+  // entregas por semana
+  const ws=new Date(today);ws.setDate(ws.getDate()-ws.getDay());
+  const B=[{l:'Vencido',p:[],v:1}];
+  act.filter(p=>p.producao_iso).forEach(p=>{const d=dt(p.producao_iso);if(d<today){B[0].p.push(p);return}const k=1+Math.floor((d-ws)/6048e5);while(B.length<=k)B.push({p:[]});B[k].p.push(p)});
+  B.forEach((b,i)=>{if(i)b.l=new Date(ws.getTime()+(i-1)*6048e5).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})});
+  const bm=Math.max(1,...B.map(b=>b.p.length));
+  h+=`<div class="pn2 c7"><h3>Entregas previstas em produção por semana</h3><div class="mut">Projetos não finalizados, pela data de produção (semana iniciada em)</div><div class="cols">${B.map(b=>`<div class="col ${b.v?'v':''}"><b>${b.p.length||''}</b><div class="st" style="height:${b.p.length/bm*140}px">${ST.map(s=>{const n=b.p.filter(p=>p.status===s).length;return n?`<i style="height:${n/b.p.length*100}%;background:${COL[s]};min-height:0" title="${s}: ${n}"></i>`:''}).join('')}</div>${b.l}</div>`).join('')}</div></div>`;
+  // sobrecarga
+  const top10=L.slice(0,10),lm=Math.max(1,...top10.map(x=>x.idx));
+  h+=`<div class="pn2 c5"><h3>Carga por pessoa (top 10)</h3><div class="mut">Índice = projetos ativos ponderados por status: vermelho ×1,5 · amarelo ×1,25 · verde ×1. Considera todos os projetos.</div>${top10.map(x=>`<div class="ov"><span title="${esc(x.n)}"><b>${esc(x.n)}</b></span><div class="tr"><i style="width:${x.idx/lm*100}%;--c:${LV[x.lvl][1]}"></i></div><span><span class="lvl" style="--c:${LV[x.lvl][1]}">${LV[x.lvl][0]}</span> <span class="mut">${x.k} proj · ${x.idx.toFixed(1)}</span></span></div>`).join('')}<div class="mut" style="margin:10px 0 0">Sobrecarregado: índice ≥ 10 · Alto: 5 a 9,9 · Normal: abaixo de 5.</div></div>`;
+  h+=freePanel('c12');
+  $('v0').innerHTML=h+'</div>';
+}
+function v3(list){
+  const L=loads(list);
+  if(!L.length)return $('v3').innerHTML='<div class="empty">Nenhuma pessoa encontrada.</div>';
+  $('v3').innerHTML='<div class="gr" style="margin-bottom:12px">'+freePanel('c12')+'</div><div class="mut" style="margin-bottom:10px">Ordenado por índice de carga (projetos ativos ponderados por status). Sobrecarregado ≥ 10 · Alto 5 a 9,9.</div><div class="team">'+L.map(r=>{
+   const role=n=>r.ps.filter(p=>n==='SM'?p.sm===r.n:n==='Dev'?p.dev1===r.n||p.dev2===r.n:String(p.responsavel).includes(r.n)).length;
+   const last=r.ps.map(dtEnd).filter(Boolean).sort().pop();
+   return`<div class="tc" style="border-top:3px solid ${LV[r.lvl][1]}"><h3><span>${esc(r.n)}</span><span class="lvl" style="--c:${LV[r.lvl][1]}">${LV[r.lvl][0]}</span></h3>
+   <div class="tb"><i style="flex:${r.ps.filter(p=>p.status==='Vermelho').length};background:var(--Vermelho)"></i><i style="flex:${r.ps.filter(p=>p.status==='Amarelo').length};background:var(--Amarelo)"></i><i style="flex:${r.ps.filter(p=>p.status==='Verde'||p.status==='Sem status').length};background:var(--Verde)"></i></div>
+   <div class="mut"><b style="color:var(--tx)">${r.k}</b> ativos · índice ${r.idx.toFixed(1)} · SM ${role('SM')} · Dev ${role('Dev')} · Resp. ${role('R')}<br>${last?'Livre após '+fmtY(last):'Sem data prevista'}</div>
+   <div style="margin-top:8px">${r.ps.map(p=>`<span class="chip" style="border-left:3px solid ${COL[p.status]}">${esc(p.projeto)}</span>`).join('')}</div></div>`}).join('')+'</div>';
+}
+const COLS=[['topico','Tópico'],['projeto','Projeto'],['responsavel','Responsável'],['status','Status'],['sm','SM'],['dev1','Dev 1'],['dev2','Dev 2'],['marco','Próximo marco'],['homologacao_iso','Homologação'],['producao_iso','Produção'],['risco','Risco'],['decisao','Decisão'],['predecessor','Predecessor'],['observacao','Observação']];
+function v4(list){
+  $('v4').innerHTML=`<div class="tw"><table><thead><tr>${COLS.map(([k,l])=>`<th data-k="${k}">${l} ${sortK===k?(sortAsc?'▲':'▼'):'⇅'}</th>`).join('')}</tr></thead><tbody>${list.map(p=>`<tr>${COLS.map(([k])=>{
+   let v=p[k];if(k.endsWith('_iso'))v=fmtY(v);
+   if(k==='status')return`<td><span class="badge" style="--c:${COL[v]}">${v}</span></td>`;
+   return`<td class="${k==='observacao'?'w':''}">${esc(v)||'-'}</td>`}).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function render(){const l=filtered();kpis(l);v0(l);v1(l);v2(l);v3(l);v4(l)}
+
+/* eventos */
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab,.view').forEach(x=>x.classList.remove('on'));t.classList.add('on');$(t.dataset.v).classList.add('on')});
+$('kpis').onclick=e=>{const k=e.target.closest('.kpi');if(!k)return;F.st=F.st===k.dataset.s?'':k.dataset.s;render()};
+[['fTopic','topic'],['fResp','resp'],['fDev','dev']].forEach(([id,k])=>$(id).onchange=e=>{F[k]=e.target.value;render()});
+$('fQ').oninput=e=>{F.q=e.target.value;render()};
+$('clear').onclick=()=>{F={topic:'',resp:'',dev:'',q:'',st:''};$('fQ').value='';fillFilters();render()};
+$('v4').onclick=e=>{const th=e.target.closest('th');if(!th)return;const k=th.dataset.k;sortAsc=sortK===k?!sortAsc:true;sortK=k;render()};
+$('print').onclick=async()=>{
+  const b=$('print');b.textContent='Gerando…';b.disabled=true;
+  const open=[...document.querySelectorAll('details.p')];open.forEach(d=>d.open=false);
+  document.querySelectorAll('[data-nocap]').forEach(x=>x.style.display='none');
+  try{const c=await html2canvas($('cap'),{scale:2,backgroundColor:'#0b1220',logging:false});
+   const a=document.createElement('a');a.download='Painel_TECK_'+new Date().toISOString().slice(0,10)+'.png';a.href=c.toDataURL();a.click()}
+  catch(e){alert('Não foi possível gerar o print.')}
+  document.querySelectorAll('[data-nocap]').forEach(x=>x.style.display='');b.textContent='Exportar print';b.disabled=false};
+
+/* importação do Excel (mantém a atualização semanal) */
+const norm=s=>String(s).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function iso(v){if(v===''||v==null)return'';let d=v instanceof Date?v:(typeof v==='number'?new Date(Math.round((v-25569)*864e5)):new Date(v));
+  if(isNaN(d))return'';return new Date(d.getTime()+(v instanceof Date?43200000:0)).toISOString().slice(0,10)}
+$('xl').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=ev=>{try{
+    const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array',cellDates:true});
+    const sh=wb.SheetNames.find(n=>norm(n)!=='colaboradores')||wb.SheetNames[0];
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sh],{defval:''});
+    const cs=wb.SheetNames.find(n=>norm(n)==='colaboradores');
+    if(cs){const T=XLSX.utils.sheet_to_json(wb.Sheets[cs],{header:1,defval:''}).map(r=>r.map(c=>String(c).trim()).filter(Boolean)).filter(r=>r.length).map(r=>({full:r[0],nick:r[1]||r[0]}));if(T.length)TEAM=T}
+    const out=rows.map(o=>{const g=(...ks)=>{for(const k of ks){const f=Object.keys(o).find(x=>norm(x)===norm(k));if(f!==undefined&&o[f]!=='')return o[f]}return''};
+      const s=String(g('status')).trim();const t=x=>String(x).trim();
+      return{topico:t(g('tópico'))||'Geral',projeto:t(g('projeto')),responsavel:t(g('responsável'))||'Não atribuído',status:ST.includes(s)?s:'Sem status',
+       predecessor:t(g('predecessor')),marco:t(g('próximo marco')),prazo_iso:iso(g('prazo')),risco:t(g('risco')),decisao:t(g('decisão em aberto')),obs:t(g('obs')),
+       homologacao_iso:iso(g('homologacao')),producao_iso:iso(g('producao')),sm:t(g('sm'))||'-',dev1:t(g('dev1'))||'-',dev2:t(g('dev2'))||'-',observacao:t(g('observação'))}}).filter(p=>p.projeto);
+    if(!out.length)throw new Error('nenhum projeto encontrado');
+    P=out;UPDATED='Planilha: '+f.name;F={topic:'',resp:'',dev:'',q:'',st:''};fillFilters();render();
+  }catch(err){alert('Erro ao ler o Excel: '+err.message)}};
+  r.readAsArrayBuffer(f)};
+$('upl').innerHTML='Os '+DATA.length+' projetos já vêm embutidos neste arquivo. Para a próxima semana, use <b>Atualizar com Excel</b> (só vale na sessão; para fixar, gere o HTML de novo com a planilha nova).';
+fillFilters();render();
+</script>
+</body>
+</html>
