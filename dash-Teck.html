@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Gerencial de Projetos - TECK</title>
+    
+    <!-- Bibliotecas externas -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+const valueLabelsPlugin = {
+    id: 'valueLabelsPlugin',
+    afterDatasetsDraw(chart, args, options) {
+        const { ctx, data } = chart;
+        chart.data.datasets.forEach((dataset, datasetIndex) => {
+            const meta = chart.getDatasetMeta(datasetIndex);
+            if (meta.hidden) return;
+            meta.data.forEach((element, index) => {
+                const value = dataset.data[index];
+                if (value !== undefined && value !== null && value > 0) {
+                    ctx.save();
+                    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    const position = element.tooltipPosition();
+                    ctx.fillText(value, position.x, position.y - 2);
+                    ctx.restore();
+                }
+            });
+        });
+    }
+};
+Chart.register(valueLabelsPlugin);
+    </script>
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --red-status: #ef4444;
+            --green-status: #10b981;
+            --yellow-status: #f59e0b;
+            --blue-accent: #3b82f6;
+            --current-week-bg: #1e3a5f;
+            --current-week-header: #2563eb;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow-x: hidden;
+        }
+
+        .site-embed-wrapper { padding: 16px; width: 100%; box-sizing: border-box; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        h1 { margin: 0; font-size: 20px; color: #ffffff; }
+        .subtitle { color: var(--text-secondary); margin-top: 4px; font-size: 12px; }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .metric-card {
+            background-color: var(--card-bg);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .metric-title { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .metric-value { font-size: 22px; font-weight: bold; margin-top: 4px; }
+
+        .excel-upload-card {
+            background-color: var(--card-bg);
+            padding: 14px 18px;
+            border-radius: 12px;
+            border: 2px dashed var(--blue-accent);
+            margin-top: 20px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .upload-info h3 { margin: 0 0 2px 0; font-size: 14px; color: #ffffff; }
+        .upload-info p { margin: 0; font-size: 11px; color: var(--text-secondary); }
+
+        .file-input-btn {
+            background-color: var(--blue-accent);
+            color: #ffffff;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-block;
+            transition: background 0.2s ease;
+        }
+        .file-input-btn:hover { background-color: #2563eb; }
+        input[type="file"] { display: none; }
+
+        .filters-section {
+            background-color: var(--card-bg);
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 16px;
+        }
+
+        .filters-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+        .filter-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; }
+        .filter-label { font-size: 11px; color: var(--text-color); font-weight: 600; }
+
+        .select-box, .search-box {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            outline: none;
+            width: 100%;
+        }
+
+        .multi-select-dropdown { position: relative; width: 100%; }
+        .multi-select-btn {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        .multi-select-btn:after { content: "▼"; font-size: 9px; color: var(--text-secondary); }
+
+        .multi-select-content {
+            display: none;
+            position: fixed;
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 6px;
+            z-index: 99999;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+            min-width: 180px;
+        }
+        .multi-select-content.show { display: block; }
+
+        .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 6px;
+            font-size: 11px;
+            color: var(--text-color);
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .checkbox-option:hover { background-color: #1e293b; }
+        .checkbox-option input[type="checkbox"] { cursor: pointer; accent-color: var(--blue-accent); }
+
+        .schedule-matrix-card {
+            background-color: var(--card-bg);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        .schedule-title { font-size: 16px; font-weight: 700; text-align: center; color: #ffffff; margin-bottom: 2px; }
+        .schedule-subtitle { font-size: 11px; text-align: center; color: var(--text-secondary); margin-bottom: 12px; }
+
+        .schedule-table { width: 100%; border-collapse: collapse; font-size: 10px; min-width: 1100px; }
+        .schedule-table th, .schedule-table td { border: 1px solid #334155; padding: 6px; text-align: center; }
+
+        .schedule-header-week { background-color: #1e3a8a; color: #ffffff; font-weight: bold; }
+        .schedule-header-date { background-color: #0f172a; color: var(--text-secondary); font-size: 9px; }
+        .schedule-header-date.current-week-header { background-color: var(--current-week-header) !important; color: #ffffff !important; font-weight: bold; }
+        .bar-cell.current-week-cell { background-color: var(--current-week-bg) !important; }
+
+        .phase-col { width: 95px; font-weight: bold; color: #ffffff; vertical-align: middle; text-align: center; }
+        .phase-1 { background-color: #0f766e; }
+        .phase-2 { background-color: #4d7c0f; }
+        .phase-3 { background-color: #0369a1; }
+
+        .task-col { text-align: left !important; font-weight: 600; color: #f1f5f9; width: 190px; background-color: #1e293b; }
+        .devs-matrix-col { text-align: center !important; font-size: 10px; color: #cbd5e1; width: 120px; background-color: #172033; }
+        .obs-matrix-col { text-align: left !important; font-size: 10px; color: #94a3b8; width: 180px; background-color: #172033; }
+
+        .bar-cell { position: relative; background-color: #0f172a; padding: 3px !important; vertical-align: middle; }
+        .cell-events-container { display: flex; flex-direction: column; gap: 4px; }
+        .task-bar-box {
+            border-radius: 5px;
+            padding: 4px 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            gap: 2px;
+        }
+        .box-homolog { background-color: #d97706 !important; border: 1px solid #f59e0b; }
+        .box-produc { background-color: #059669 !important; border: 1px solid #10b981; }
+
+        .task-date { font-size: 10px; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 3px; }
+        .task-marco {
+            font-size: 8px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.95);
+            background-color: rgba(0, 0, 0, 0.25);
+            padding: 2px 4px;
+            border-radius: 3px;
+            width: 100%;
+            text-align: center;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+        .chart-section { background-color: var(--card-bg); padding: 16px; border-radius: 12px; border: 1px solid var(--border-color); }
+        .chart-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-color); }
+        .chart-container { position: relative; height: 280px; width: 100%; }
+
+        .table-container { background-color: var(--card-bg); border-radius: 10px; border: 1px solid var(--border-color); overflow-x: auto; padding: 12px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; }
+        th { background-color: #0f172a; padding: 10px 8px; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+        th.sortable { cursor: pointer; user-select: none; transition: background 0.2s; }
+        th.sortable:hover { background-color: #1e293b; color: #ffffff; }
+        .sort-icon { font-size: 9px; margin-left: 4px; color: var(--blue-accent); }
+        td { padding: 8px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+        tr:hover { background-color: #243347; }
+
+        .badge { padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: 600; display: inline-block; white-space: nowrap; }
+        .badge-vermelho { background-color: rgba(239, 68, 68, 0.2); color: var(--red-status); border: 1px solid var(--red-status); }
+        .badge-verde { background-color: rgba(16, 185, 129, 0.2); color: var(--green-status); border: 1px solid var(--green-status); }
+        .badge-amarelo { background-color: rgba(245, 158, 11, 0.2); color: var(--yellow-status); border: 1px solid var(--yellow-status); }
+        .badge-finalizado { background-color: rgba(59, 130, 246, 0.2); color: var(--blue-accent); border: 1px solid var(--blue-accent); }
+        .badge-sim { background-color: rgba(239, 68, 68, 0.25); color: #f87171; border: 1px solid #ef4444; }
+
+        .obs-text { color: var(--text-secondary); font-size: 10px; max-width: 180px; white-space: normal; }
+        .gantt-cell { width: 180px; min-width: 140px; }
+
+        .gantt-track {
+            position: relative;
+            height: 16px;
+            background-color: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .gantt-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 4px;
+            font-size: 9px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .color-bg-vermelho { background-color: var(--red-status); }
+        .color-bg-verde { background-color: var(--green-status); }
+        .color-bg-amarelo { background-color: var(--yellow-status); }
+        .color-bg-finalizado { background-color: var(--blue-accent); }
+
+        .section-header-collapse {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .collapse-toggle-btn {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .collapse-toggle-btn:hover {
+            background: #334155;
+            color: #ffffff;
+        }
+        .collapse-body {
+            transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+            overflow: hidden;
+            max-height: 5000px;
+            opacity: 1;
+        }
+        .collapsed .collapse-body {
+            max-height: 0 !important;
+            opacity: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            border: none !important;
+        }
+        .collapsed .collapse-toggle-btn {
+            transform: rotate(-180deg);
+        }
+    </style>
+</head>
+<body>
+
+<div class="site-embed-wrapper">
+    <header>
+        <div class="header-left">
+            <div>
+                <h1>Acompanhamento Executivo</h1>
+                <div class="subtitle">Relatório Gerencial de Projetos - TECK</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="subtitle" id="data-atual"></div>
+            <button onclick="exportScreenCapture()" style="background: linear-gradient(90deg, #10b981 0%, #059669 100%); color: #ffffff; border: none; padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); transition: transform 0.1s;" title="Gerar print para WhatsApp ou E-mail">
+                📸 Exportar Print
+            </button>
+        </div>
+    </header>
+
+    <!-- 1. FILTROS (Aberto por padrão) -->
+    <div class="filters-section" id="section-filters">
+        <div class="section-header-collapse" onclick="toggleSection('section-filters')">
+            <div class="filters-title" style="margin-bottom:0;">🔍 Filtros do Painel</div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body" style="margin-top: 10px;">
+            <div class="controls">
+                <div class="filter-group">
+                    <label class="filter-label" for="topicFilter">1. Tópico</label>
+                    <select id="topicFilter" class="select-box" onchange="filterTable()">
+                        <option value="">Todos os Tópicos</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label" for="respFilter">2. Responsável</label>
+                    <select id="respFilter" class="select-box" onchange="filterTable()">
+                        <option value="">Todos os Responsáveis</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label" for="devFilter">3. Desenvolvedor (Dev)</label>
+                    <select id="devFilter" class="select-box" onchange="filterTable()">
+                        <option value="">Todos os Devs</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">4. Status</label>
+                    <div class="multi-select-dropdown">
+                        <div class="multi-select-btn" id="multiSelectBtn" onclick="toggleStatusDropdown()">
+                            Todos os Status
+                        </div>
+                        <div class="multi-select-content" id="multiSelectContent">
+                            <label class="checkbox-option">
+                                <input type="checkbox" value="Vermelho" onchange="updateSelectedStatus()"> Vermelho (Crítico)
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" value="Verde" onchange="updateSelectedStatus()"> Verde (Em Dia)
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" value="Finalizado" onchange="updateSelectedStatus()"> Finalizado
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" value="Amarelo" onchange="updateSelectedStatus()"> Amarelo (Risco)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label" for="searchInput">5. Buscar Texto</label>
+                    <input type="text" id="searchInput" class="search-box" placeholder="Projeto, SM, dev, observação..." onkeyup="filterTable()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MÉTRICAS -->
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-title">Total Projetos</div>
+            <div class="metric-value" style="color: #ffffff;" id="m-total">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Crítico (Vermelho)</div>
+            <div class="metric-value" style="color: var(--red-status);" id="m-red">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Em Dia (Verde)</div>
+            <div class="metric-value" style="color: var(--green-status);" id="m-green">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Finalizados</div>
+            <div class="metric-value" style="color: var(--blue-accent);" id="m-done">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Atenção (Amarelo)</div>
+            <div class="metric-value" style="color: var(--yellow-status);" id="m-yellow">0</div>
+        </div>
+    </div>
+
+    <!-- 2. VISÃO GRÁFICA (Aberto por padrão) -->
+    <div class="schedule-matrix-card" id="section-graficos">
+        <div class="section-header-collapse" onclick="toggleSection('section-graficos')" style="margin-bottom: 12px;">
+            <div>
+                <div class="schedule-title" style="text-align: left;">📊 Visão Gráfica e Alocação</div>
+                <div class="schedule-subtitle" style="text-align: left; margin-bottom: 0;">Distribuição por Tópico, Responsável e Carga de Trabalho da Equipe</div>
+            </div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body">
+            <div class="charts-grid" style="margin-bottom: 0;">
+                <div class="chart-section">
+                    <div class="chart-title">Distribuição de Projetos por Tópico x Responsável</div>
+                    <div class="chart-container">
+                        <canvas id="topicRespChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-section">
+                    <div class="chart-title">Alocação de Carga: Projetos por SM e Desenvolvedores</div>
+                    <div class="chart-container">
+                        <canvas id="teamWorkloadChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. CRONOGRAMA / GERENCIAMENTO DOS PRINCIPAIS PROJETOS (Colapsado por padrão) -->
+    <div class="schedule-matrix-card collapsed" id="section-cronograma">
+        <div class="section-header-collapse" onclick="toggleSection('section-cronograma')" style="margin-bottom: 12px;">
+            <div>
+                <div class="schedule-title" style="text-align: left;">📅 Gerenciamento dos Principais Projetos</div>
+                <div class="schedule-subtitle" style="text-align: left; margin-bottom: 0;">Cronograma com Homologação, Produção (🚀), Equipe e Observações organizados por semana</div>
+            </div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body">
+            <table class="schedule-table">
+                <thead>
+                    <tr id="matrixHeaderTop"></tr>
+                    <tr id="matrixHeaderBottom"></tr>
+                </thead>
+                <tbody id="matrixBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 4. VISÃO GERAL DA EQUIPE (Colapsado por padrão) -->
+    <div class="schedule-matrix-card collapsed" id="section-equipe" style="margin-top: 24px;">
+        <div class="section-header-collapse" onclick="toggleSection('section-equipe')" style="margin-bottom: 12px;">
+            <div>
+                <div class="schedule-title" style="text-align: left;">👥 Visão Geral da Equipe por Tópico e Projetos</div>
+                <div class="schedule-subtitle" id="globalPeopleSubtitle" style="text-align: left; margin-bottom: 0;">Listagem completa de colaboradores e projetos vinculados</div>
+            </div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body">
+            <div id="globalPeopleGrid" style="margin-top: 8px;"></div>
+        </div>
+    </div>
+
+    <!-- 5. TABELA EXECUTIVA DETALHADA DE PROJETOS (Colapsado por padrão) -->
+    <div class="schedule-matrix-card collapsed" id="section-tabela">
+        <div class="section-header-collapse" onclick="toggleSection('section-tabela')" style="margin-bottom: 12px;">
+            <div>
+                <div class="schedule-title" style="text-align: left;">📋 Tabela Executiva Detalhada de Projetos</div>
+                <div class="schedule-subtitle" style="text-align: left; margin-bottom: 0;">Listagem completa de status, marcos, responsáveis e progresso Gantt</div>
+            </div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body">
+            <div class="table-container" style="background: transparent; border: none; padding: 0;">
+                <table id="projectsTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortTable('topico')">Tópico <span id="sort-topico" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('projeto')">Projeto <span id="sort-projeto" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('responsavel')">Responsável <span id="sort-responsavel" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('sm')">SM <span id="sort-sm" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('dev1')">Dev 1 <span id="sort-dev1" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('dev2')">Dev 2 <span id="sort-dev2" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('status')">Status <span id="sort-status" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('predecessor')">Predecessor <span id="sort-predecessor" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('marco')">Próximo Marco <span id="sort-marco" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('homologacao_iso')">Homologação <span id="sort-homologacao_iso" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('producao_iso')">Produção <span id="sort-producao_iso" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('risco')">Risco <span id="sort-risco" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('decisao')">Decisão Aberta? <span id="sort-decisao" class="sort-icon">⇅</span></th>
+                            <th style="width: 180px;">Gantt</th>
+                            <th class="sortable" onclick="sortTable('obs')">OBS <span id="sort-obs" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('observacao')">Observação <span id="sort-observacao" class="sort-icon">⇅</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. UPLOAD (Colapsado por padrão) -->
+    <div class="excel-upload-card collapsed" id="section-upload">
+        <div class="section-header-collapse" onclick="toggleSection('section-upload')" style="width: 100%;">
+            <div class="upload-info">
+                <h3>📂 Atualizar Planilha de Projetos (.xlsx)</h3>
+                <p id="fileStatus">Carregue o arquivo Excel para atualizar automaticamente este painel.</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="file-input-wrapper" onclick="event.stopPropagation()">
+                    <label for="excelFileInput" class="file-input-btn">📥 Carregar Excel</label>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls" onchange="handleFileSelect(event)" />
+                </div>
+                <div class="collapse-toggle-btn">▼</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('data-atual').innerText = 'Data: ' + new Date().toLocaleDateString('pt-BR');
+
+function toggleSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (section) {
+        section.classList.toggle('collapsed');
+    }
+}
+
+const today = new Date();
+let selectedStatuses = [];
+let teamSortColumn = "full_name";
+let teamSortAscending = true;
+let sortColumn = null;
+let sortAscending = true;
+let masterCollabList = [
+    { "full_name": "Samuel de Melo Santos Nascimento", "nickname": "Samuel" },
+    { "full_name": "Eduardo dos Santos", "nickname": "Eduardo" },
+    { "full_name": "Gabriel Nobrega Neri", "nickname": "Neri" },
+    { "full_name": "Eric Santos Castro", "nickname": "Eric" },
+    { "full_name": "Lucas Silva Araujo", "nickname": "Lucas BI" },
+    { "full_name": "Ricardo Henrique Leal Maciel", "nickname": "Ricardo" },
+    { "full_name": "Gabriel de Oliveira Alves", "nickname": "Gabriel" },
+    { "full_name": "Edmário Oliveira de Araujo", "nickname": "Edmario" },
+    { "full_name": "Djacy Neto", "nickname": "Djacy" },
+    { "full_name": "Yuri Mussi", "nickname": "Yuri" },
+    { "full_name": "Anderson Pereira de Sales", "nickname": "Sales" },
+    { "full_name": "Lucas Santos da Silva", "nickname": "Santos" },
+    { "full_name": "Thalia da Silva", "nickname": "Thalia" },
+    { "full_name": "Filipe Tárcio Herculano de Sousa", "nickname": "Tarcio" },
+    { "full_name": "Paulo Roberto Moreira", "nickname": "Paulo" },
+    { "full_name": "Samuel Pereira Brandão", "nickname": "Samuel Dev" },
+    { "full_name": "Nei Agripino Delfino Neto", "nickname": "Nei" },
+    { "full_name": "Leandro Gustavo Ferreira de Souza Almeida", "nickname": "Leandro" },
+    { "full_name": "Matheus Amaral Miranda", "nickname": "Amaral" },
+    { "full_name": "Patrício Godoy Flendes Pinto", "nickname": "Patricio" },
+    { "full_name": "Renan Gonçalves Queiroz SIlva", "nickname": "Renan" },
+    { "full_name": "Lucas de Matos Harzer Lopes", "nickname": "Lucas" },
+    { "full_name": "Bruno Moura", "nickname": "Bruno" },
+    { "full_name": "João Vitor de Souza Siqueira (CLT + Bonus)", "nickname": "Joao" },
+    { "full_name": "Carlos Vaz", "nickname": "Cadu" },
+    { "full_name": "Gabriel Rodrigues da Silva - Proj Nexus", "nickname": "Gabriel Rodrigues" },
+    { "full_name": "Fernando Francisco de Souza", "nickname": "Fernando" },
+    { "full_name": "Thierry Esteves Lima", "nickname": "Thierry" },
+    { "full_name": "Wendeel Marinho Butel", "nickname": "Wendeel" },
+    { "full_name": "Luiz Henrique", "nickname": "Luiz" },
+    { "full_name": "Guilherme Carneiro Carvalho", "nickname": "Guilherme" },
+    { "full_name": "Enzo", "nickname": "Enzo" },
+    { "full_name": "Felipe Pinheiro de Freitas", "nickname": "Felipe" }
+];
+
+function toggleStatusDropdown() {
+    const content = document.getElementById('multiSelectContent');
+    const btn = document.getElementById('multiSelectBtn');
+    
+    if (content.classList.contains('show')) {
+        content.classList.remove('show');
+    } else {
+        const rect = btn.getBoundingClientRect();
+        content.style.top = (rect.bottom + 4) + 'px';
+        content.style.left = rect.left + 'px';
+        content.style.width = rect.width + 'px';
+        content.classList.add('show');
+    }
+}
+
+document.addEventListener('click', function(e) {
+    const dropdown = document.querySelector('.multi-select-dropdown');
+    const content = document.getElementById('multiSelectContent');
+    if (dropdown && !dropdown.contains(e.target) && !content.contains(e.target)) {
+        content.classList.remove('show');
+    }
+});
+
+function updateSelectedStatus() {
+    const checkboxes = document.querySelectorAll('#multiSelectContent input[type="checkbox"]');
+    selectedStatuses = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+
+    const btn = document.getElementById('multiSelectBtn');
+    if (selectedStatuses.length === 0) {
+        btn.innerText = 'Todos os Status';
+    } else if (selectedStatuses.length === 1) {
+        btn.innerText = selectedStatuses[0];
+    } else {
+        btn.innerText = `${selectedStatuses.length} Status Selecionados`;
+    }
+
+    filterTable();
+}
+
+let projectsData = [];
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    document.getElementById('fileStatus').innerText = `🔄 Lendo arquivo: ${file.name}...`;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+            
+            if (workbook.SheetNames.includes('Colaboradores')) {
+                const sheetCollab = workbook.Sheets['Colaboradores'];
+                const rawCollabJson = XLSX.utils.sheet_to_json(sheetCollab, { header: 1, defval: "" });
+                let dynamicMasterList = [];
+                rawCollabJson.forEach(row => {
+                    let cols = row.filter(c => String(c).trim() !== '');
+                    if (cols.length >= 2) {
+                        dynamicMasterList.push({ full_name: String(cols[0]).trim(), nickname: String(cols[1]).trim() });
+                    } else if (cols.length === 1) {
+                        dynamicMasterList.push({ full_name: String(cols[0]).trim(), nickname: String(cols[0]).trim() });
+                    }
+                });
+                if (dynamicMasterList.length > 0) {
+                    masterCollabList = dynamicMasterList;
+                }
+            }
+
+            let targetSheetName = workbook.SheetNames[0];
+            for (let name of workbook.SheetNames) {
+                if (name.toLowerCase() === 'colaboradores') continue;
+                const sheet = workbook.Sheets[name];
+                const jsonCheck = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+                if (jsonCheck && jsonCheck.length > 0) {
+                    const headerStr = jsonCheck[0].join(' ').toLowerCase();
+                    if (headerStr.includes('projeto') || headerStr.includes('tópico') || headerStr.includes('topico') || headerStr.includes('status')) {
+                        targetSheetName = name;
+                        break;
+                    }
+                }
+            }
+
+            const sheet = workbook.Sheets[targetSheetName];
+            const rawJson = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+            if (!rawJson || rawJson.length === 0) {
+                throw new Error("A planilha está vazia.");
+            }
+
+            projectsData = rawJson.map((row, index) => {
+                const cleanRow = {};
+                Object.keys(row).forEach(k => {
+                    if (k) cleanRow[k.trim()] = row[k];
+                });
+
+                const getVal = (possibleKeys) => {
+                    for (let pk of possibleKeys) {
+                        let foundKey = Object.keys(cleanRow).find(k => k.toLowerCase() === pk.toLowerCase());
+                        if (foundKey !== undefined && cleanRow[foundKey] !== undefined && cleanRow[foundKey] !== "") {
+                            return cleanRow[foundKey];
+                        }
+                    }
+                    return "";
+                };
+
+                const parseDateCell = (val) => {
+                    if (!val) return { str: "", iso: "" };
+                    if (val instanceof Date) {
+                        if (!isNaN(val.getTime())) {
+                            return {
+                                str: val.toLocaleDateString('pt-BR'),
+                                iso: val.toISOString().split('T')[0]
+                            };
+                        }
+                    }
+                    let s = String(val).trim();
+                    if (s.length >= 8 && !isNaN(new Date(s).getTime())) {
+                        let d = new Date(s);
+                        return {
+                            str: d.toLocaleDateString('pt-BR'),
+                            iso: d.toISOString().split('T')[0]
+                        };
+                    }
+                    return { str: s, iso: "" };
+                };
+
+                let rawH = getVal(['Homologacao', 'Homologação', 'PRAZO', 'Prazo Homologação', 'Data Homologacao']);
+                let hDate = parseDateCell(rawH);
+
+                let rawP = getVal(['Producao', 'Produção', 'Data Producao', 'Data Produção']);
+                let pDate = parseDateCell(rawP);
+
+                let sm = String(getVal(['SM', 'Scrum Master']) || '-').trim();
+                let dev1 = String(getVal(['Dev1', 'DEV1', 'Desenvolvedor 1']) || '-').trim();
+                let dev2 = String(getVal(['Dev2', 'DEV2', 'Desenvolvedor 2']) || '-').trim();
+                let obs = String(getVal(['OBS', 'Obs']) || '').trim();
+                let observacao = String(getVal(['Observação', 'Observacao', 'Obs Detalhada']) || '').trim();
+
+                return {
+                    id: index + 1,
+                    topico: String(getVal(['TÓPICO', 'TOPICO', 'Topico', 'Topico/Projeto']) || 'Geral').trim(),
+                    projeto: String(getVal(['PROJETO', 'NOME DO PROJETO', 'Projeto', 'Nome']) || 'Sem Nome').trim(),
+                    responsavel: String(getVal(['RESPONSÁVEL', 'RESPONSAVEL', 'Responsavel']) || 'Não Atribuído').trim(),
+                    status: String(getVal(['STATUS', 'Status']) || 'Vermelho').trim(),
+                    marco: String(getVal(['PRÓXIMO MARCO', 'PROXIMO MARCO', 'Marco']) || '-').trim(),
+                    predecessor: String(getVal(['Predecessor', 'Dependencia', 'Dependência']) || '').trim(),
+                    risco: String(getVal(['RISCO', 'Risco']) || '').trim(),
+                    decisao: String(getVal(['DECISÃO EM ABERTO', 'DECISAO EM ABERTO', 'Decisao']) || '').trim(),
+                    homologacao: hDate.str,
+                    homologacao_iso: hDate.iso,
+                    producao: pDate.str,
+                    producao_iso: pDate.iso,
+                    sm: sm === '' || sm === 'undefined' ? '-' : sm,
+                    dev1: dev1 === '' || dev1 === 'undefined' ? '-' : dev1,
+                    dev2: dev2 === '' || dev2 === 'undefined' ? '-' : dev2,
+                    obs: obs === 'undefined' ? '' : obs,
+                    observacao: observacao === 'undefined' ? '' : observacao
+                };
+            }).filter(p => p.projeto !== 'Sem Nome' && p.projeto !== '');
+
+            document.getElementById('fileStatus').innerText = `✅ Planilha "${file.name}" importada com sucesso! (${projectsData.length} projetos)`;
+            populateFilters();
+            filterTable();
+
+        } catch (error) {
+            console.error("Erro na importação:", error);
+            document.getElementById('fileStatus').innerText = `❌ Erro ao ler a planilha: ${error.message}`;
+            alert("Erro ao ler o arquivo Excel.");
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function getStatusBadge(status) {
+    switch(status) {
+        case 'Vermelho': return '<span class="badge badge-vermelho">Vermelho</span>';
+        case 'Verde': return '<span class="badge badge-verde">Verde</span>';
+        case 'Amarelo': return '<span class="badge badge-amarelo">Amarelo</span>';
+        case 'Finalizado': return '<span class="badge badge-finalizado">Finalizado</span>';
+        default: return `<span class="badge">${status}</span>`;
+    }
+}
+
+function getStatusColorClass(status) {
+    switch(status) {
+        case 'Vermelho': return 'color-bg-vermelho';
+        case 'Verde': return 'color-bg-verde';
+        case 'Amarelo': return 'color-bg-amarelo';
+        case 'Finalizado': return 'color-bg-finalizado';
+        default: return 'color-bg-verde';
+    }
+}
+
+function sortTable(column) {
+    if (sortColumn === column) {
+        sortAscending = !sortAscending;
+    } else {
+        sortColumn = column;
+        sortAscending = true;
+    }
+
+    document.querySelectorAll('.sort-icon').forEach(icon => icon.innerText = '⇅');
+
+    const activeIcon = document.getElementById(`sort-${column}`);
+    if (activeIcon) {
+        activeIcon.innerText = sortAscending ? '▲' : '▼';
+    }
+
+    filterTable();
+}
+
+function calculateTopicPeople(allData) {
+    const topicPeopleMap = {};
+    allData.forEach(it => {
+        if (!topicPeopleMap[it.topico]) topicPeopleMap[it.topico] = new Set();
+        if (it.sm && it.sm !== '-' && it.sm !== 'undefined') {
+            it.sm.split(',').forEach(p => { if (p.trim() && p.trim() !== '-') topicPeopleMap[it.topico].add(p.trim()); });
+        }
+        if (it.dev1 && it.dev1 !== '-' && it.dev1 !== 'undefined') {
+            it.dev1.split(',').forEach(p => { if (p.trim() && p.trim() !== '-') topicPeopleMap[it.topico].add(p.trim()); });
+        }
+        if (it.dev2 && it.dev2 !== '-' && it.dev2 !== 'undefined') {
+            it.dev2.split(',').forEach(p => { if (p.trim() && p.trim() !== '-') topicPeopleMap[it.topico].add(p.trim()); });
+        }
+        if (it.responsavel && it.responsavel !== '-' && it.responsavel !== 'Não Atribuído' && it.responsavel !== 'Todos') {
+            it.responsavel.split(',').forEach(p => { if (p.trim() && p.trim() !== '-') topicPeopleMap[it.topico].add(p.trim()); });
+        }
+    });
+    return topicPeopleMap;
+}
+
+function renderScheduleMatrix(data) {
+    const matrixHeaderTop = document.getElementById('matrixHeaderTop');
+    const matrixHeaderBottom = document.getElementById('matrixHeaderBottom');
+    const matrixBody = document.getElementById('matrixBody');
+
+    matrixHeaderTop.innerHTML = '';
+    matrixHeaderBottom.innerHTML = '';
+    matrixBody.innerHTML = '';
+
+    const topicPeopleMap = calculateTopicPeople(projectsData);
+
+    const allDates = [];
+    data.forEach(d => {
+        if (d.homologacao_iso) allDates.push(new Date(d.homologacao_iso));
+        if (d.producao_iso) allDates.push(new Date(d.producao_iso));
+    });
+    
+    let minD = new Date("2026-09-25");
+    let maxD = new Date("2026-11-30");
+
+    if (allDates.length > 0) {
+        const minVal = new Date(Math.min(...allDates));
+        const maxVal = new Date(Math.max(...allDates));
+        if (!isNaN(minVal.getTime())) minD = minVal;
+        if (!isNaN(maxVal.getTime())) maxD = maxVal;
+    }
+
+    const weeks = [];
+    let curr = new Date(minD);
+    curr.setDate(curr.getDate() - curr.getDay());
+
+    while (curr <= maxD || weeks.length < 5) {
+        let startW = new Date(curr);
+        let endW = new Date(curr);
+        endW.setDate(endW.getDate() + 6);
+        
+        const isCurrentWeek = (today >= startW && today <= endW);
+
+        weeks.push({ start: startW, end: endW, isCurrentWeek: isCurrentWeek });
+        curr.setDate(curr.getDate() + 7);
+    }
+
+    matrixHeaderTop.innerHTML = `
+        <th rowspan="2" style="width: 95px; background-color: #0f172a;">Tópico</th>
+        <th rowspan="2" class="task-col" style="background-color: #0f172a;">Projeto</th>
+        <th rowspan="2" class="devs-matrix-col" style="background-color: #0f172a;">Dev 1 / Dev 2</th>
+        <th rowspan="2" class="obs-matrix-col" style="background-color: #0f172a;">Observação</th>
+        <th colspan="${weeks.length}" class="schedule-header-week">Gerenciamento dos Principais Projetos</th>
+    `;
+
+    weeks.forEach((w, idx) => {
+        const startStr = `${w.start.getDate().toString().padStart(2,'0')}/${(w.start.getMonth()+1).toString().padStart(2,'0')}`;
+        const endStr = `${w.end.getDate().toString().padStart(2,'0')}/${(w.end.getMonth()+1).toString().padStart(2,'0')}`;
+        
+        const currentClass = w.isCurrentWeek ? 'current-week-header' : '';
+        const currentLabel = w.isCurrentWeek ? ' <br>(Semana Atual)' : '';
+
+        matrixHeaderBottom.innerHTML += `<th class="schedule-header-date ${currentClass}">Semana ${idx+1}${currentLabel}<br>(${startStr} - ${endStr})</th>`;
+    });
+
+    const grouped = {};
+    data.forEach(item => {
+        if (!grouped[item.topico]) grouped[item.topico] = [];
+        grouped[item.topico].push(item);
+    });
+
+    const holidays = ['2026-10-12', '2026-11-02', '2026-11-15'];
+    function isBusinessDay(dateObj) {
+        const day = dateObj.getDay();
+        if (day === 0 || day === 6) return false;
+        const iso = dateObj.toISOString().split('T')[0];
+        if (holidays.includes(iso)) return false;
+        return true;
+    }
+
+    function getPreviousBusinessDay(dateObj) {
+        let d = new Date(dateObj);
+        d.setDate(d.getDate() - 1);
+        while (!isBusinessDay(d)) {
+            d.setDate(d.getDate() - 1);
+        }
+        return d;
+    }
+
+    const topics = Object.keys(grouped);
+    const phaseClasses = ['phase-1', 'phase-2', 'phase-3'];
+
+    topics.forEach((topic, topicIdx) => {
+        const items = grouped[topic];
+        const phaseClass = phaseClasses[topicIdx % phaseClasses.length];
+
+        const numPessoas = topicPeopleMap[topic] ? topicPeopleMap[topic].size : 0;
+        const pessoasLabel = numPessoas === 1 ? '1 pessoa' : `${numPessoas} pessoas`;
+
+        items.forEach((item, itemIdx) => {
+            const tr = document.createElement('tr');
+
+            if (itemIdx === 0) {
+                const phaseTd = document.createElement('td');
+                phaseTd.className = `phase-col ${phaseClass}`;
+                phaseTd.rowSpan = items.length;
+                phaseTd.innerHTML = `<b>${topic}</b><br><span style="font-size:9px; color:#60a5fa; font-weight:normal; cursor:pointer; text-decoration:underline;" title="Clique para ver quem são as pessoas" onclick="showTopicPeople('${topic}')">👤 ${pessoasLabel}</span>`;
+                tr.appendChild(phaseTd);
+            }
+
+            const taskTd = document.createElement('td');
+            taskTd.className = 'task-col';
+            taskTd.innerText = item.projeto;
+            tr.appendChild(taskTd);
+
+            const devsTd = document.createElement('td');
+            devsTd.className = 'devs-matrix-col';
+            let d1 = item.dev1 && item.dev1 !== '-' ? item.dev1 : '';
+            let d2 = item.dev2 && item.dev2 !== '-' ? item.dev2 : '';
+            let devsCombined = '-';
+            if (d1 && d2) devsCombined = `${d1}<br><span style="color:var(--text-secondary); font-size:9px;">${d2}</span>`;
+            else if (d1) devsCombined = d1;
+            else if (d2) devsCombined = d2;
+            devsTd.innerHTML = devsCombined;
+            tr.appendChild(devsTd);
+
+            const obsMatrixTd = document.createElement('td');
+            obsMatrixTd.className = 'obs-matrix-col';
+            obsMatrixTd.innerText = item.observacao || '-';
+            tr.appendChild(obsMatrixTd);
+
+            let hDate = item.homologacao_iso ? new Date(item.homologacao_iso) : null;
+            let prodDate = item.producao_iso ? new Date(item.producao_iso) : null;
+            
+            let hEndDate = null;
+            if (hDate && prodDate) {
+                hEndDate = getPreviousBusinessDay(prodDate);
+                if (hEndDate < hDate) {
+                    hEndDate = new Date(hDate);
+                }
+            } else if (hDate) {
+                hEndDate = new Date(hDate);
+            }
+
+            weeks.forEach(w => {
+                const td = document.createElement('td');
+                td.className = 'bar-cell' + (w.isCurrentWeek ? ' current-week-cell' : '');
+
+                let cellBoxes = [];
+
+                if (hDate && hEndDate) {
+                    if (hDate <= w.end && hEndDate >= w.start) {
+                        let rangeStr = item.homologacao;
+                        if (prodDate) {
+                            let dStr = hEndDate.toLocaleDateString('pt-BR');
+                            rangeStr = `${item.homologacao} até ${dStr}`;
+                        }
+                        cellBoxes.push(`
+                            <div class="task-bar-box box-homolog" title="Homologação: ${rangeStr}">
+                                <span class="task-date">Homologação</span>
+                                <span class="task-marco">${rangeStr}</span>
+                            </div>
+                        `);
+                    }
+                }
+
+                if (prodDate && prodDate >= w.start && prodDate <= w.end) {
+                    cellBoxes.push(`
+                        <div class="task-bar-box box-produc" title="Produção prevista em ${item.producao}">
+                            <span class="task-date">🚀 Produção</span>
+                            <span class="task-marco">${item.producao}</span>
+                        </div>
+                    `);
+                }
+
+                if (cellBoxes.length > 0) {
+                    td.innerHTML = `<div class="cell-events-container">${cellBoxes.join('')}</div>`;
+                }
+
+                tr.appendChild(td);
+            });
+
+            matrixBody.appendChild(tr);
+        });
+    });
+}
+
+let chartInstance = null;
+let workloadChartInstance = null;
+
+function renderChart(data) {
+    const topics = [...new Set(data.map(d => d.topico))].sort();
+    const resps = ['Leandro', 'Matheus', 'Patricio', 'Renan', 'Ferrari', 'Outros'];
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
+
+    const datasets = resps.map((resp, i) => {
+        return {
+            label: resp,
+            data: topics.map(topic => {
+                return data.filter(d => {
+                    if (resp === 'Outros') {
+                        return d.topico === topic && !['Leandro', 'Matheus', 'Patricio', 'Renan', 'Ferrari'].some(r => d.responsavel.includes(r));
+                    }
+                    return d.topico === topic && d.responsavel.includes(resp);
+                }).length;
+            }),
+            backgroundColor: colors[i]
+        };
+    });
+
+    const ctx = document.getElementById('topicRespChart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+
+    chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: topics, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                y: { stacked: true, ticks: { color: '#94a3b8', precision: 0 }, grid: { color: '#334155' } }
+            },
+            plugins: {
+                legend: { labels: { color: '#f8fafc' } }
+            }
+        }
+    });
+
+    let teamMembersMap = {};
+    let memberRolesMap = {};
+    data.forEach(d => {
+        if (d.sm && d.sm !== '-' && d.sm !== 'undefined') {
+            d.sm.split(',').forEach(n => {
+                let name = n.trim();
+                if (name && name !== '-') {
+                    teamMembersMap[name] = (teamMembersMap[name] || 0) + 1;
+                    if (!memberRolesMap[name]) memberRolesMap[name] = new Set();
+                    memberRolesMap[name].add('SM');
+                }
+            });
+        }
+        if (d.dev1 && d.dev1 !== '-' && d.dev1 !== 'undefined') {
+            d.dev1.split(',').forEach(n => {
+                let name = n.trim();
+                if (name && name !== '-') {
+                    teamMembersMap[name] = (teamMembersMap[name] || 0) + 1;
+                    if (!memberRolesMap[name]) memberRolesMap[name] = new Set();
+                    memberRolesMap[name].add('Dev');
+                }
+            });
+        }
+        if (d.dev2 && d.dev2 !== '-' && d.dev2 !== 'undefined') {
+            d.dev2.split(',').forEach(n => {
+                let name = n.trim();
+                if (name && name !== '-') {
+                    teamMembersMap[name] = (teamMembersMap[name] || 0) + 1;
+                    if (!memberRolesMap[name]) memberRolesMap[name] = new Set();
+                    memberRolesMap[name].add('Dev');
+                }
+            });
+        }
+    });
+
+    let rawTeamLabels = Object.keys(teamMembersMap).sort();
+    let teamLabels = rawTeamLabels.map(l => {
+        let roles = memberRolesMap[l] ? Array.from(memberRolesMap[l]).join(' / ') : '';
+        return roles ? [l, `(${roles})`] : [l];
+    });
+    let teamValues = rawTeamLabels.map(l => teamMembersMap[l]);
+
+    if (rawTeamLabels.length === 0) {
+        teamLabels = [['Nenhum atribuído']];
+        teamValues = [0];
+    }
+
+    const ctxWorkload = document.getElementById('teamWorkloadChart').getContext('2d');
+    if (workloadChartInstance) workloadChartInstance.destroy();
+
+    workloadChartInstance = new Chart(ctxWorkload, {
+        type: 'bar',
+        data: {
+            labels: teamLabels,
+            datasets: [{
+                label: 'Projetos Atribuídos (SM / Dev)',
+                data: teamValues,
+                backgroundColor: '#10b981'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } },
+                y: { ticks: { color: '#94a3b8', precision: 0 }, grid: { color: '#334155' } }
+            },
+            plugins: {
+                legend: { labels: { color: '#f8fafc' } }
+            }
+        }
+    });
+}
+
+function sortTeamTable(column) {
+    if (teamSortColumn === column) {
+        teamSortAscending = !teamSortAscending;
+    } else {
+        teamSortColumn = column;
+        teamSortAscending = true;
+    }
+    renderGlobalPeopleGrid(lastFilteredDataForTeam || projectsData);
+}
+
+let lastFilteredDataForTeam = null;
+
+function renderGlobalPeopleGrid(filteredData) {
+    lastFilteredDataForTeam = filteredData;
+    const gridContainer = document.getElementById('globalPeopleGrid');
+    if (!gridContainer) return;
+
+    const topicVal = document.getElementById('topicFilter').value;
+    const respVal = document.getElementById('respFilter').value;
+    const devVal = document.getElementById('devFilter').value;
+    const searchVal = document.getElementById('searchInput').value;
+    const hasActiveFilters = topicVal || respVal || devVal || searchVal || selectedStatuses.length > 0;
+
+    const mappedCollabs = masterCollabList.map(collab => {
+        const fullName = collab.full_name;
+        const nickName = collab.nickname;
+
+        const personProjects = filteredData.filter(it => {
+            const smVal = (it.sm || '').toLowerCase();
+            const d1Val = (it.dev1 || '').toLowerCase();
+            const d2Val = (it.dev2 || '').toLowerCase();
+            const respValProj = (it.responsavel || '').toLowerCase();
+            
+            const nLower = nickName.toLowerCase();
+            const fLower = fullName.toLowerCase();
+            
+            return [nLower, fLower].some(term => smVal.includes(term) || d1Val.includes(term) || d2Val.includes(term) || respValProj.includes(term));
+        });
+
+        let roles = new Set();
+        personProjects.forEach(p => {
+            if ((p.sm && p.sm.toLowerCase().includes(nickName.toLowerCase())) || (p.sm && p.sm.toLowerCase().includes(fullName.toLowerCase()))) roles.add('SM');
+            if ((p.dev1 && (p.dev1.toLowerCase().includes(nickName.toLowerCase()) || p.dev1.toLowerCase().includes(fullName.toLowerCase()))) || 
+                (p.dev2 && (p.dev2.toLowerCase().includes(nickName.toLowerCase()) || p.dev2.toLowerCase().includes(fullName.toLowerCase())))) roles.add('Dev');
+            if ((p.responsavel && (p.responsavel.toLowerCase().includes(nickName.toLowerCase()) || p.responsavel.toLowerCase().includes(fullName.toLowerCase()))) && p.responsavel !== 'Não Atribuído') roles.add('Responsável');
+        });
+        let roleStr = Array.from(roles).join(' / ');
+
+        let activePersonProjects = personProjects.filter(p => p.status !== 'Finalizado');
+        let maxDateIso = null;
+        let maxDateStr = 'Não definida';
+        activePersonProjects.forEach(p => {
+            let dIso = p.producao_iso || p.homologacao_iso;
+            if (dIso) {
+                if (!maxDateIso || dIso > maxDateIso) {
+                    maxDateIso = dIso;
+                    maxDateStr = p.producao || p.homologacao;
+                }
+            }
+        });
+
+        return { 
+            ...collab, 
+            personProjects, 
+            roleStr, 
+            activeCount: activePersonProjects.length,
+            maxDateIso: maxDateIso || '9999-12-31',
+            maxDateStr 
+        };
+    });
+
+    const activeCollabs = hasActiveFilters 
+        ? mappedCollabs.filter(c => c.personProjects.length > 0)
+        : mappedCollabs;
+
+    activeCollabs.sort((a, b) => {
+        let valA = a[teamSortColumn];
+        let valB = b[teamSortColumn];
+        if (typeof valA === 'string') valA = valA.toLowerCase();
+        if (typeof valB === 'string') valB = valB.toLowerCase();
+        if (valA < valB) return teamSortAscending ? -1 : 1;
+        if (valA > valB) return teamSortAscending ? 1 : -1;
+        return 0;
+    });
+
+    const sub = document.getElementById('globalPeopleSubtitle');
+    if (sub) {
+        const comProjetos = activeCollabs.filter(c => c.personProjects.length > 0).length;
+        sub.innerText = `👥 ${activeCollabs.length} Colaboradores exibidos (${comProjetos} com projetos nos filtros atuais)`;
+    }
+
+    if (activeCollabs.length === 0) {
+        gridContainer.innerHTML = '<div style="text-align: center; padding: 24px; color: var(--text-secondary); font-style: italic;">Nenhum colaborador encontrado para os filtros selecionados.</div>';
+        return;
+    }
+
+    const getIcon = (col) => {
+        if (teamSortColumn !== col) return '⇅';
+        return teamSortAscending ? '▲' : '▼';
+    };
+
+    let tableHtml = `
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+                <thead>
+                    <tr style="background-color: #0f172a; border-bottom: 2px solid #334155;">
+                        <th class="sortable" onclick="sortTeamTable('full_name')" style="padding: 10px; color: var(--text-secondary); width: 220px; cursor:pointer;">Colaborador (Nome Oficial) <span style="font-size:9px; color:var(--blue-accent);">${getIcon('full_name')}</span></th>
+                        <th class="sortable" onclick="sortTeamTable('nickname')" style="padding: 10px; color: var(--text-secondary); width: 110px; cursor:pointer;">Apelido <span style="font-size:9px; color:var(--blue-accent);">${getIcon('nickname')}</span></th>
+                        <th class="sortable" onclick="sortTeamTable('roleStr')" style="padding: 10px; color: var(--text-secondary); width: 130px; cursor:pointer;">Papéis Atribuídos <span style="font-size:9px; color:var(--blue-accent);">${getIcon('roleStr')}</span></th>
+                        <th class="sortable" onclick="sortTeamTable('maxDateIso')" style="padding: 10px; color: var(--text-secondary); width: 150px; cursor:pointer;">Ficará Livre Em <span style="font-size:9px; color:var(--blue-accent);">${getIcon('maxDateIso')}</span></th>
+                        <th style="padding: 10px; color: var(--text-secondary);">Projetos Vinculados</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    activeCollabs.forEach(collab => {
+        const fullName = collab.full_name;
+        const nickName = collab.nickname;
+        const personProjects = collab.personProjects;
+        const roleStr = collab.roleStr;
+        const maxDateStr = collab.maxDateStr;
+        const activeCount = collab.activeCount;
+
+        let roleBadgeHtml = roleStr ? `<span style="background-color:rgba(59,130,246,0.2); color:#60a5fa; border:1px solid #3b82f6; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:600;">${roleStr}</span>` : '<span style="color:#64748b; font-style:italic;">Nenhum no momento</span>';
+
+        let freeHtml = activeCount > 0 
+            ? `<div style="display:flex; align-items:center; gap:4px; color:#38bdf8; font-weight:700;"><span style="font-size:13px;">⏳</span> ${maxDateStr}</div>` 
+            : `<div style="display:flex; align-items:center; gap:4px; color:#10b981; font-weight:600;"><span style="font-size:13px;">🎉</span> Disponível</div>`;
+
+        const projBadges = personProjects.map(p => {
+            let prevStr = p.producao || p.homologacao || 'A definir';
+            return `<div style="background-color:#172033; border:1px solid #334155; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;">
+                <div style="font-weight:600; color:#f8fafc;">📌 [${p.topico}] ${p.projeto}</div>
+                <div style="display:flex; justify-content:space-between; margin-top:3px; font-size:10px; color:var(--text-secondary);">
+                    <span>Status: ${p.status || 'Pendente'}</span>
+                    <span style="color:#60a5fa; font-weight:650;">Previsão: ${prevStr}</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        tableHtml += `
+            <tr style="border-bottom: 1px solid #334155;">
+                <td style="padding: 10px; vertical-align: middle;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="background-color:#2563eb; color:#fff; width:30px; height:30px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-weight:bold; font-size:12px; flex-shrink: 0;">${fullName.charAt(0).toUpperCase()}</div>
+                        <div>
+                            <div style="font-weight:700; color: #ffffff; font-size: 12px;">${fullName}</div>
+                            <div style="margin-top: 4px;"><span style="background-color:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid #3b82f6; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:600;">${personProjects.length} projeto(s)</span></div>
+                        </div>
+                    </div>
+                </td>
+                <td style="padding: 10px; vertical-align: middle; color: #94a3b8; font-family: monospace;">${nickName}</td>
+                <td style="padding: 10px; vertical-align: middle;">${roleBadgeHtml}</td>
+                <td style="padding: 10px; vertical-align: middle;">${freeHtml}</td>
+                <td style="padding: 10px; vertical-align: middle;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">${projBadges || '<span style="color:#64748b; font-style:italic;">Nenhum projeto vinculado</span>'}</div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `</tbody></table></div>`;
+    gridContainer.innerHTML = tableHtml;
+}
+
+function renderTable(data) {
+    renderGlobalPeopleGrid(data);
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+
+    const topicPeopleMap = calculateTopicPeople(projectsData);
+    const minTime = new Date("2026-09-25").getTime();
+    const maxTime = new Date("2026-11-30").getTime();
+    const totalDuration = maxTime - minTime;
+
+    data.forEach(item => {
+        let targetIso = item.producao_iso || item.homologacao_iso;
+        let targetStr = item.producao ? `🚀 ${item.producao}` : (item.homologacao || '');
+
+        let ganttHtml = '';
+        if (targetIso) {
+            const itemTime = new Date(targetIso).getTime();
+            let pct = ((itemTime - minTime) / totalDuration) * 100;
+            pct = Math.max(12, Math.min(pct, 100));
+            const colorClass = getStatusColorClass(item.status);
+            ganttHtml = `<div class="gantt-track" title="${targetStr}"><div class="gantt-bar ${colorClass}" style="width: ${pct.toFixed(1)}%;">${targetStr}</div></div>`;
+        } else {
+            ganttHtml = `<div style="font-size:10px; color:#94a3b8; font-style:italic;">Sem Data Definida</div>`;
+        }
+
+        const decisaoBadge = item.decisao === 'Sim' ? '<span class="badge badge-sim">Sim</span>' : '<span style="color:#64748b;">-</span>';
+        const producaoCell = item.producao ? `<b style="color: #10b981;">🚀 ${item.producao}</b>` : '<span style="color:#64748b;">-</span>';
+        const smText = item.sm && item.sm !== '-' && item.sm !== 'undefined' ? item.sm : '-';
+        const dev1Text = item.dev1 && item.dev1 !== '-' && item.dev1 !== 'undefined' ? item.dev1 : '-';
+        const dev2Text = item.dev2 && item.dev2 !== '-' && item.dev2 !== 'undefined' ? item.dev2 : '-';
+        const numPessoas = topicPeopleMap[item.topico] ? topicPeopleMap[item.topico].size : 0;
+        const pessoasLabel = numPessoas === 1 ? '1 pessoa' : `${numPessoas} pessoas`;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><b>${item.topico}</b><br><span style="font-size:9px; color:var(--text-secondary);">👤 ${pessoasLabel}</span></td>
+            <td>${item.projeto}</td>
+            <td>${item.responsavel}</td>
+            <td><b style="color: var(--blue-accent);">${smText}</b></td>
+            <td><span style="color: #cbd5e1; font-weight: 500;">${dev1Text}</span></td>
+            <td><span style="color: #cbd5e1; font-weight: 500;">${dev2Text}</span></td>
+            <td>${getStatusBadge(item.status)}</td>
+            <td>${item.predecessor || '<span style="color:#64748b;">-</span>'}</td>
+            <td>${item.marco}</td>
+            <td style="white-space: nowrap;">${item.homologacao || '<span style="color:#64748b;">-</span>'}</td>
+            <td style="white-space: nowrap;">${producaoCell}</td>
+            <td>${item.risco || '<span style="color:#64748b;">-</span>'}</td>
+            <td style="text-align: center;">${decisaoBadge}</td>
+            <td class="gantt-cell">${ganttHtml}</td>
+            <td class="obs-text">${item.obs || '-'}</td>
+            <td class="obs-text">${item.observacao || '-'}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    updateMetrics(data);
+    renderScheduleMatrix(data);
+    renderChart(data);
+}
+
+function updateMetrics(data) {
+    document.getElementById('m-total').innerText = data.length;
+    document.getElementById('m-red').innerText = data.filter(d => d.status === 'Vermelho').length;
+    document.getElementById('m-green').innerText = data.filter(d => d.status === 'Verde').length;
+    document.getElementById('m-done').innerText = data.filter(d => d.status === 'Finalizado').length;
+    document.getElementById('m-yellow').innerText = data.filter(d => d.status === 'Amarelo').length;
+}
+
+function populateFilters() {
+    const topics = [...new Set(projectsData.map(p => p.topico))].sort();
+    const resps = [...new Set(projectsData.map(p => p.responsavel))].sort();
+    let devsSet = new Set();
+    projectsData.forEach(p => {
+        if (p.dev1 && p.dev1 !== '-' && p.dev1 !== 'undefined') devsSet.add(p.dev1);
+        if (p.dev2 && p.dev2 !== '-' && p.dev2 !== 'undefined') devsSet.add(p.dev2);
+    });
+    const devs = [...devsSet].sort();
+
+    const topicSelect = document.getElementById('topicFilter');
+    topicSelect.innerHTML = '<option value="">Todos os Tópicos</option>';
+    topics.forEach(t => {
+        const opt = document.createElement('option'); opt.value = t; opt.innerText = t; topicSelect.appendChild(opt);
+    });
+
+    const respSelect = document.getElementById('respFilter');
+    respSelect.innerHTML = '<option value="">Todos os Responsáveis</option>';
+    resps.forEach(r => {
+        const opt = document.createElement('option'); opt.value = r; opt.innerText = r; respSelect.appendChild(opt);
+    });
+
+    const devSelect = document.getElementById('devFilter');
+    devSelect.innerHTML = '<option value="">Todos os Devs</option>';
+    devs.forEach(d => {
+        const opt = document.createElement('option'); opt.value = d; opt.innerText = d; devSelect.appendChild(opt);
+    });
+}
+
+function filterTable() {
+    const searchVal = document.getElementById('searchInput').value.toLowerCase();
+    const topicVal = document.getElementById('topicFilter').value;
+    const respVal = document.getElementById('respFilter').value;
+    const devVal = document.getElementById('devFilter').value;
+
+    let filtered = projectsData.filter(item => {
+        const matchesSearch = item.topico.toLowerCase().includes(searchVal) ||
+                              item.projeto.toLowerCase().includes(searchVal) ||
+                              item.sm.toLowerCase().includes(searchVal) ||
+                              item.dev1.toLowerCase().includes(searchVal) ||
+                              item.dev2.toLowerCase().includes(searchVal) ||
+                              item.obs.toLowerCase().includes(searchVal) ||
+                              item.observacao.toLowerCase().includes(searchVal) ||
+                              item.marco.toLowerCase().includes(searchVal) ||
+                              item.risco.toLowerCase().includes(searchVal) ||
+                              item.predecessor.toLowerCase().includes(searchVal);
+        const matchesTopic = topicVal === '' || item.topico === topicVal;
+        const matchesResp = respVal === '' || item.responsavel === respVal;
+        const matchesDev = devVal === '' || item.dev1 === devVal || item.dev2 === devVal;
+        const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(item.status);
+        return matchesSearch && matchesTopic && matchesResp && matchesDev && matchesStatus;
+    });
+
+    if (sortColumn) {
+        filtered.sort((a, b) => {
+            let valA = a[sortColumn] || '';
+            let valB = b[sortColumn] || '';
+            if (typeof valA === 'string') valA = valA.toLowerCase();
+            if (typeof valB === 'string') valB = valB.toLowerCase();
+            if (valA < valB) return sortAscending ? -1 : 1;
+            if (valA > valB) return sortAscending ? 1 : -1;
+            return 0;
+        });
+    }
+
+    renderTable(filtered);
+}
+
+// Carregar dados iniciais de exemplo ao abrir
+projectsData = [{"id": 1, "topico": "ABC", "projeto": "KitDoc", "responsavel": "Leandro", "status": "Vermelho", "predecessor": "", "marco": "Produção", "risco": "", "decisao": "", "obs": "", "observacao": "Juliana ficou de testar as novas variaveis", "homologacao": "", "homologacao_iso": "", "producao": "20/10/2026", "producao_iso": "2026-10-20", "sm": "Patricio", "dev1": "Gabriel Rodrigues", "dev2": "-"}, {"id": 2, "topico": "ABC", "projeto": "Integrar FrontConsig V2 com função ABC", "responsavel": "Leandro", "status": "Vermelho", "predecessor": "", "marco": "Produção", "risco": "", "decisao": "", "obs": "", "observacao": "Pendente agr só a api de mudar esteira da ABC - Juliana", "homologacao": "23/10/2026", "homologacao_iso": "2026-10-23", "producao": "26/10/2026", "producao_iso": "2026-10-26", "sm": "Ferrari", "dev1": "Edmario", "dev2": "-"}];
+populateFilters();
+filterTable();
+</script>
+
+<div id="peopleModal" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background-color:rgba(15,23,42,0.85); backdrop-filter:blur(6px); justify-content:center; align-items:center;">
+    <div style="background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border:1px solid #334155; border-radius:16px; width:440px; max-width:92%; box-shadow:0 20px 40px rgba(0,0,0,0.6); color:#f8fafc; overflow:hidden;">
+        <div style="background:linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%); padding:18px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="background-color:rgba(255,255,255,0.15); width:36px; height:36px; border-radius:10px; display:flex; justify-content:center; align-items:center; font-size:18px;">👥</div>
+                <div>
+                    <h3 id="modalTopicTitle" style="margin:0; font-size:16px; color:#ffffff; font-weight:700;">Equipe Envolvida</h3>
+                    <span style="font-size:11px; color:#93c5fd;">Membros e atuação nos projetos</span>
+                </div>
+            </div>
+            <button onclick="closePeopleModal()" style="background:rgba(255,255,255,0.1); border:none; color:#ffffff; width:30px; height:30px; border-radius:50%; font-size:16px; cursor:pointer; display:flex; justify-content:center; align-items:center;">&times;</button>
+        </div>
+        <div id="modalPeopleList" style="padding:20px; max-height:320px; overflow-y:auto; display:flex; flex-direction:column; gap:12px;"></div>
+        <div style="padding:14px 20px; background-color:#0f172a; border-top:1px solid #334155; text-align:right;">
+            <button onclick="closePeopleModal()" style="background:linear-gradient(90deg, #2563eb 100%, #1d4ed8 100%); color:#ffffff; border:none; padding:8px 20px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:600;">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function showTopicPeople(topicName) {
+    const topicPeopleMap = calculateTopicPeople(projectsData);
+    const peopleSet = topicPeopleMap[topicName] || new Set();
+    document.getElementById('modalTopicTitle').innerText = `Tópico: ${topicName}`;
+    const listContainer = document.getElementById('modalPeopleList');
+    listContainer.innerHTML = '';
+
+    if (peopleSet.size === 0) {
+        listContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#94a3b8; font-style:italic;">Nenhuma pessoa registrada.</div>';
+    } else {
+        Array.from(peopleSet).sort().forEach(person => {
+            const personProjects = projectsData.filter(it => it.topico === topicName && (
+                (it.sm && it.sm.includes(person)) || (it.dev1 && it.dev1.includes(person)) || (it.dev2 && it.dev2.includes(person)) || (it.responsavel && it.responsavel.includes(person))
+            ));
+            let roles = new Set();
+            personProjects.forEach(p => {
+                if (p.sm && p.sm.includes(person)) roles.add('SM');
+                if ((p.dev1 && p.dev1.includes(person)) || (p.dev2 && p.dev2.includes(person))) roles.add('Dev');
+                if (p.responsavel && p.responsavel.includes(person) && p.responsavel !== 'Não Atribuído') roles.add('Responsável');
+            });
+            let roleStr = Array.from(roles).join(' / ');
+            let roleBadgeHtml = roleStr ? `<span style="background-color:rgba(59,130,246,0.2); color:#60a5fa; border:1px solid #3b82f6; padding:1px 6px; border-radius:4px; font-size:9px; font-weight:600; margin-left:6px;">${roleStr}</span>` : '';
+            const projBadges = personProjects.map(p => `<span style="background-color:#1e293b; border:1px solid #334155; color:#cbd5e1; padding:3px 8px; border-radius:6px; font-size:10px; display:inline-block; margin:2px 2px 2px 0;">📌 ${p.projeto}</span>`).join('');
+
+            const cardDiv = document.createElement('div');
+            cardDiv.style.padding = '12px'; cardDiv.style.backgroundColor = '#172033'; cardDiv.style.borderRadius = '10px'; cardDiv.style.border = '1px solid #334155';
+            cardDiv.innerHTML = `
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="background-color:#2563eb; color:#fff; width:28px; height:28px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-weight:bold; font-size:12px;">${person.charAt(0).toUpperCase()}</div>
+                        <span style="font-weight:700; font-size:13px; color:#ffffff;">${person}</span>
+                    </div>
+                    <div>${roleBadgeHtml}</div>
+                </div>
+                <div style="font-size:11px; color:#94a3b8; margin-top:4px;">
+                    <div style="margin-bottom:4px; font-weight:600; color:#60a5fa;">Projetos envolvidos:</div>
+                    <div style="display:flex; flex-wrap:wrap;">${projBadges}</div>
+                </div>
+            `;
+            listContainer.appendChild(cardDiv);
+        });
+    }
+    document.getElementById('peopleModal').style.display = 'flex';
+}
+function closePeopleModal() { document.getElementById('peopleModal').style.display = 'none'; }
+window.onclick = function(event) { if (event.target === document.getElementById('peopleModal')) closePeopleModal(); }
+</script>
+
+<script>
+function exportScreenCapture() {
+    const btn = event.currentTarget || document.querySelector('button[onclick*="exportScreenCapture"]');
+    const originalText = btn ? btn.innerHTML : '📸 Exportar Print';
+    if (btn) { btn.innerHTML = '⏳ Gerando Print...'; btn.disabled = true; }
+
+    const tableContainer = document.querySelector('.table-container');
+    const uploadCard = document.querySelector('.excel-upload-card');
+    if (tableContainer) tableContainer.style.display = 'none';
+    if (uploadCard) uploadCard.style.display = 'none';
+
+    html2canvas(document.querySelector('.site-embed-wrapper'), {
+        scale: 2, useCORS: true, backgroundColor: '#0f172a', logging: false
+    }).then(canvas => {
+        if (tableContainer) tableContainer.style.display = 'block';
+        if (uploadCard) uploadCard.style.display = 'flex';
+        const link = document.createElement('a');
+        link.download = 'Painel_Executivo_TECK_' + new Date().toISOString().split('T')[0] + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        if (btn) { btn.innerHTML = originalText; btn.disabled = false; }
+    }).catch(err => {
+        if (tableContainer) tableContainer.style.display = 'block';
+        if (uploadCard) uploadCard.style.display = 'flex';
+        alert('Erro ao capturar tela.');
+        if (btn) { btn.innerHTML = originalText; btn.disabled = false; }
+    });
+}
+</script>
+
+</body>
+</html>
