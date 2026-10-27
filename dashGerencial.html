@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Gerencial de Projetos - TECK</title>
+    
+    <!-- Bibliotecas externas -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script>
+const valueLabelsPlugin = {
+    id: 'valueLabelsPlugin',
+    afterDatasetsDraw(chart, args, options) {
+        const { ctx, data } = chart;
+        chart.data.datasets.forEach((dataset, datasetIndex) => {
+            const meta = chart.getDatasetMeta(datasetIndex);
+            if (meta.hidden) return;
+            meta.data.forEach((element, index) => {
+                const value = dataset.data[index];
+                if (value !== undefined && value !== null && value > 0) {
+                    ctx.save();
+                    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    const position = element.tooltipPosition();
+                    ctx.fillText(value, position.x, position.y - 2);
+                    ctx.restore();
+                }
+            });
+        });
+    }
+};
+Chart.register(valueLabelsPlugin);
+    </script>
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --red-status: #ef4444;
+            --green-status: #10b981;
+            --yellow-status: #f59e0b;
+            --blue-accent: #3b82f6;
+            --purple-accent: #8b5cf6;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow-x: hidden;
+        }
+
+        .site-embed-wrapper { padding: 16px; width: 100%; box-sizing: border-box; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        h1 { margin: 0; font-size: 20px; color: #ffffff; }
+        .subtitle { color: var(--text-secondary); margin-top: 4px; font-size: 12px; }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .metric-card {
+            background-color: var(--card-bg);
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+        }
+
+        .metric-title { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .metric-value { font-size: 22px; font-weight: bold; margin-top: 4px; }
+
+        .file-input-btn {
+            background-color: var(--blue-accent);
+            color: #ffffff;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-block;
+            transition: background 0.2s ease;
+        }
+        .file-input-btn:hover { background-color: #2563eb; }
+        input[type="file"] { display: none; }
+
+        .filters-section {
+            background-color: var(--card-bg);
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 16px;
+        }
+
+        .filters-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+        .filter-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 160px; }
+        .filter-label { font-size: 11px; color: var(--text-color); font-weight: 600; }
+
+        .select-box, .search-box {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            outline: none;
+            width: 100%;
+        }
+
+        .multi-select-dropdown { position: relative; width: 100%; }
+        .multi-select-btn {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        .multi-select-btn:after { content: "▼"; font-size: 9px; color: var(--text-secondary); }
+
+        .multi-select-content {
+            display: none;
+            position: fixed;
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 6px;
+            z-index: 99999;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+            min-width: 180px;
+        }
+        .multi-select-content.show { display: block; }
+
+        .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 6px;
+            font-size: 11px;
+            color: var(--text-color);
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .checkbox-option:hover { background-color: #1e293b; }
+        .checkbox-option input[type="checkbox"] { cursor: pointer; accent-color: var(--blue-accent); }
+
+        /* Menu Dropdown de Exportação */
+        .export-dropdown { position: relative; display: inline-block; }
+        .export-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 6px;
+            background-color: #1e293b;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 6px;
+            z-index: 99999;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+            min-width: 240px;
+        }
+        .export-content.show { display: block; }
+        .export-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            font-size: 11px;
+            color: #f8fafc;
+            cursor: pointer;
+            border-radius: 6px;
+            white-space: nowrap;
+            transition: background 0.2s;
+        }
+        .export-option:hover { background-color: #334155; }
+
+        .schedule-matrix-card {
+            background-color: var(--card-bg);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .schedule-title { font-size: 16px; font-weight: 700; text-align: left; color: #ffffff; margin-bottom: 2px; }
+        .schedule-subtitle { font-size: 11px; text-align: left; color: var(--text-secondary); margin-bottom: 12px; }
+
+        /* Container responsivo do Cronograma */
+        .schedule-table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+
+        .schedule-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 10px; 
+            min-width: 950px; 
+            table-layout: fixed; 
+        }
+        .schedule-table th, .schedule-table td { border: 1px solid #334155; padding: 6px; text-align: center; overflow: hidden; }
+
+        .schedule-header-month { background-color: #1e3a8a; color: #ffffff; font-weight: bold; font-size: 12px; padding: 10px; }
+        
+        .phase-col { width: 90px; font-weight: bold; color: #ffffff; vertical-align: middle; text-align: center; }
+        .phase-1 { background-color: #0f766e; }
+        .phase-2 { background-color: #4d7c0f; }
+        .phase-3 { background-color: #0369a1; }
+
+        .task-col { text-align: left !important; font-weight: 600; color: #f1f5f9; width: 170px; background-color: #1e293b; }
+        .devs-matrix-col { text-align: center !important; font-size: 10px; color: #cbd5e1; width: 100px; background-color: #172033; }
+        .obs-matrix-col { text-align: left !important; font-size: 10px; color: #94a3b8; width: 150px; background-color: #172033; }
+
+        .timeline-container-cell {
+            padding: 4px !important;
+            background-color: #0f172a;
+            position: relative;
+            height: 42px;
+            vertical-align: middle;
+        }
+
+        .today-indicator-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #ef4444;
+            z-index: 10;
+            pointer-events: none;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+        }
+
+        .timeline-row-bar {
+            position: absolute;
+            height: 24px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            top: 9px;
+        }
+
+        .timeline-homolog-prod-bar {
+            background: linear-gradient(90deg, #d97706 0%, #059669 100%);
+            border: 1px solid #f59e0b;
+        }
+        .timeline-homolog-bar {
+            background: linear-gradient(90deg, #d97706 0%, #b45309 100%);
+            border: 1px solid #f59e0b;
+        }
+        .timeline-prod-bar {
+            background: linear-gradient(90deg, #059669 0%, #047857 100%);
+            border: 1px solid #10b981;
+        }
+
+        .timeline-completed-bar {
+            background: linear-gradient(90deg, #059669 0%, #047857 100%) !important;
+            border: 1px solid #34d399 !important;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.4) !important;
+        }
+        .row-completed-highlight {
+            background-color: rgba(16, 185, 129, 0.05) !important;
+        }
+
+        .timeline-date-label-left {
+            position: absolute;
+            font-size: 9px;
+            color: #f59e0b;
+            font-weight: bold;
+            top: 15px;
+            transform: translateX(-100%);
+            padding-right: 4px;
+            white-space: nowrap;
+            z-index: 5;
+        }
+
+        .timeline-date-label-right {
+            position: absolute;
+            font-size: 9px;
+            color: #10b981;
+            font-weight: bold;
+            top: 15px;
+            padding-left: 4px;
+            white-space: nowrap;
+            z-index: 5;
+        }
+
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 0; }
+        @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+        .chart-section { background-color: var(--card-bg); padding: 16px; border-radius: 12px; border: 1px solid var(--border-color); }
+        .chart-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text-color); }
+        .chart-container { position: relative; height: 280px; width: 100%; }
+
+        .table-container { background-color: var(--card-bg); border-radius: 10px; border: 1px solid var(--border-color); overflow-x: auto; padding: 12px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; }
+        th { background-color: #0f172a; padding: 10px 8px; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+        th.sortable { cursor: pointer; user-select: none; transition: background 0.2s; }
+        th.sortable:hover { background-color: #1e293b; color: #ffffff; }
+        .sort-icon { font-size: 9px; margin-left: 4px; color: var(--blue-accent); }
+        td { padding: 8px; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+        tr:hover { background-color: #243347; }
+
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; display: inline-block; white-space: nowrap; }
+        .badge-desenvolvimento { background-color: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #3b82f6; }
+        .badge-homologacao { background-color: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid #f59e0b; }
+        .badge-finalizado { background-color: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid #10b981; font-weight: 700; }
+        .badge-andamento { background-color: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid #8b5cf6; }
+        .badge-standby { background-color: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid #64748b; }
+        .badge-aguardando { background-color: rgba(236, 72, 153, 0.2); color: #f472b6; border: 1px solid #ec4899; }
+        .badge-verde { background-color: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; }
+        .badge-pendente { background-color: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid #475569; }
+
+        .obs-text { color: var(--text-secondary); font-size: 10px; max-width: 180px; white-space: normal; }
+        .gantt-cell { width: 180px; min-width: 140px; }
+
+        .gantt-track {
+            position: relative;
+            height: 16px;
+            background-color: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .gantt-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 4px;
+            font-size: 9px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .color-bg-desenvolvimento { background-color: #3b82f6; }
+        .color-bg-homologacao { background-color: #f59e0b; }
+        .color-bg-finalizado { background-color: #10b981; }
+        .color-bg-andamento { background-color: #8b5cf6; }
+        .color-bg-standby { background-color: #64748b; }
+        .color-bg-aguardando { background-color: #ec4899; }
+        .color-bg-verde { background-color: #10b981; }
+
+        .section-header-collapse {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .collapse-toggle-btn {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .collapse-toggle-btn:hover {
+            background: #334155;
+            color: #ffffff;
+        }
+        .collapse-body {
+            transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+            overflow: hidden;
+            max-height: 5000px;
+            opacity: 1;
+        }
+        .collapsed .collapse-body {
+            max-height: 0 !important;
+            opacity: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            border: none !important;
+        }
+        .collapsed .collapse-toggle-btn {
+            transform: rotate(-180deg);
+        }
+    </style>
+</head>
+<body>
+
+<div class="site-embed-wrapper" id="captureContainer">
+    <header>
+        <div class="header-left">
+            <div>
+                <h1>Acompanhamento Executivo</h1>
+                <div class="subtitle">Relatório Gerencial de Projetos - TECK (55 Projetos)</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="subtitle" id="data-atual"></div>
+            
+            <!-- Menu Dropdown de Exportação de Prints -->
+            <div class="export-dropdown">
+                <button onclick="toggleExportMenu()" style="background: linear-gradient(90deg, #10b981 0%, #059669 100%); color: #ffffff; border: none; padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                    📸 Exportar Print ▼
+                </button>
+                <div class="export-content" id="exportMenuContent">
+                    <div class="export-option" onclick="exportView('graficos-cronograma')">📊 Visão Gráfica & Cronograma</div>
+                    <div class="export-option" onclick="exportView('equipe')">👥 Visão da Equipe</div>
+                    <div class="export-option" onclick="exportView('tabela')">📋 Tabela Executiva</div>
+                </div>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- 1. FILTROS (Visível por padrão) -->
+    <div class="filters-section" id="section-filters">
+        <div class="section-header-collapse" onclick="toggleSection('section-filters')">
+            <div class="filters-title" style="margin-bottom:0;">🔍 Filtros do Painel</div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body" style="margin-top: 10px;">
+            <div class="controls">
+                <div class="filter-group">
+                    <label class="filter-label" for="topicFilter">1. Tópico</label>
+                    <select id="topicFilter" class="select-box" onchange="filterTable()">
+                        <option value="">Todos os Tópicos</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label" for="respFilter">2. Responsável</label>
+                    <select id="respFilter" class="select-box" onchange="filterTable()">
+                        <option value="">Todos os Responsáveis</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label" for="devFilter">3. Desenvolvedor (Dev)</label>
+                    <select id="devFilter" class="select-box" onchange="filterTable()">
+                        <option value="">Todos os Devs</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label">4. Status</label>
+                    <div class="multi-select-dropdown">
+                        <div class="multi-select-btn" id="multiSelectBtn" onclick="toggleStatusDropdown()">
+                            Todos os Status
+                        </div>
+                        <div class="multi-select-content" id="multiSelectContent">
+                            <label class="checkbox-option"><input type="checkbox" value="Desenvolvimento" onchange="updateSelectedStatus()"> Desenvolvimento</label>
+                            <label class="checkbox-option"><input type="checkbox" value="Homologação" onchange="updateSelectedStatus()"> Homologação</label>
+                            <label class="checkbox-option"><input type="checkbox" value="Finalizado" onchange="updateSelectedStatus()"> Finalizado</label>
+                            <label class="checkbox-option"><input type="checkbox" value="Andamento" onchange="updateSelectedStatus()"> Andamento</label>
+                            <label class="checkbox-option"><input type="checkbox" value="Stand-by" onchange="updateSelectedStatus()"> Stand-by</label>
+                            <label class="checkbox-option"><input type="checkbox" value="Aguardando" onchange="updateSelectedStatus()"> Aguardando</label>
+                            <label class="checkbox-option"><input type="checkbox" value="Verde" onchange="updateSelectedStatus()"> Verde</label>
+                            <label class="checkbox-option"><input type="checkbox" value="Pendente" onchange="updateSelectedStatus()"> Pendente</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label" for="searchInput">5. Buscar Texto</label>
+                    <input type="text" id="searchInput" class="search-box" placeholder="Projeto, SM, dev, observação..." onkeyup="filterTable()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MÉTRICAS -->
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-title">Total Projetos</div>
+            <div class="metric-value" style="color: #ffffff;" id="m-total">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Desenvolvimento</div>
+            <div class="metric-value" style="color: #60a5fa;" id="m-desenv">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Homologação</div>
+            <div class="metric-value" style="color: #f59e0b;" id="m-homolog">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Finalizados</div>
+            <div class="metric-value" style="color: #10b981;" id="m-done">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-title">Andamento / Outros</div>
+            <div class="metric-value" style="color: #a78bfa;" id="m-others">0</div>
+        </div>
+    </div>
+
+    <!-- 2. VISÃO GRÁFICA & CARGA DE TRABALHO (Visível por padrão) -->
+    <div class="schedule-matrix-card" id="section-graficos">
+        <div class="section-header-collapse" onclick="toggleSection('section-graficos')" style="margin-bottom: 12px;">
+            <div>
+                <div class="schedule-title">📊 Visão Gráfica e Alocação</div>
+                <div class="schedule-subtitle" style="margin-bottom: 0;">Distribuição por Tópico, Responsável e Carga de Trabalho da Equipe</div>
+            </div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body">
+            <div class="charts-grid">
+                <div class="chart-section">
+                    <div class="chart-title">Distribuição de Projetos por Tópico x Responsável</div>
+                    <div class="chart-container">
+                        <canvas id="topicRespChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-section">
+                    <div class="chart-title">Alocação de Carga: Projetos por SM e Desenvolvedores</div>
+                    <div class="chart-container">
+                        <canvas id="teamWorkloadChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. CRONOGRAMA NA LINHA DO TEMPO POR MÊS (Visível por padrão) -->
+    <div class="schedule-matrix-card" id="section-cronograma">
+        <div class="section-header-collapse" onclick="toggleSection('section-cronograma')" style="margin-bottom: 12px;">
+            <div>
+                <div class="schedule-title">📅 Cronograma na Linha do Tempo (Visão Mensal)</div>
+                <div class="schedule-subtitle" style="margin-bottom: 0;">Projetos finalizados com destaque em verde esmeralda, selo de entrega e datas exibidas (Arraste para o lado no celular 📱)</div>
+            </div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body">
+            <div class="schedule-table-wrapper">
+                <table class="schedule-table" id="timelineTable">
+                    <thead>
+                        <tr id="matrixHeaderTop"></tr>
+                    </thead>
+                    <tbody id="matrixBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. VISÃO GERAL DA EQUIPE & SEM PROJETO (Colapsado por padrão) -->
+    <div class="schedule-matrix-card collapsed" id="section-equipe" style="margin-top: 24px;">
+        <div class="section-header-collapse" onclick="toggleSection('section-equipe')">
+            <div>
+                <div class="schedule-title" style="margin-bottom: 2px;">👥 Visão Geral da Equipe por Tópico e Projetos</div>
+                <div class="schedule-subtitle" id="globalPeopleSubtitle" style="margin-bottom: 0;">Listagem completa de colaboradores, papéis e membros disponíveis sem projeto</div>
+            </div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body" style="margin-top: 12px;">
+            <!-- Sub-seção de Disponíveis -->
+            <div id="unassignedSectionBox" style="background-color: #111827; border: 1px solid #10b981; border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 16px;">🎉</span>
+                        <h4 id="unassignedTitle" style="margin: 0; font-size: 13px; color: #10b981; font-weight: 700;">Colaboradores sem Projeto Atrelado (Disponíveis)</h4>
+                    </div>
+                    <span id="unassignedCountBadge" style="background-color: rgba(16,185,129,0.2); color: #34d399; border: 1px solid #10b981; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">0 membros</span>
+                </div>
+                <div id="unassignedPeopleGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px;"></div>
+            </div>
+
+            <!-- Listagem Geral Detalhada -->
+            <div id="globalPeopleGrid" style="margin-top: 8px;"></div>
+        </div>
+    </div>
+
+    <!-- 5. TABELA EXECUTIVA (Colapsado por padrão) -->
+    <div class="schedule-matrix-card collapsed" id="section-tabela">
+        <div class="section-header-collapse" onclick="toggleSection('section-tabela')">
+            <div>
+                <div class="schedule-title" style="margin-bottom: 2px;">📋 Tabela Executiva Detalhada de Projetos</div>
+                <div class="schedule-subtitle" style="margin-bottom: 0;">Listagem completa de status, marcos, responsáveis e progresso Gantt</div>
+            </div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body" style="margin-top: 12px;">
+            <div class="table-container" style="background: transparent; border: none; padding: 0;">
+                <table id="projectsTable" style="table-layout: auto;">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortTable('topico')">Tópico <span id="sort-topico" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('projeto')">Projeto <span id="sort-projeto" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('responsavel')">Responsável <span id="sort-responsavel" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('sm')">SM <span id="sort-sm" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('dev1')">Dev 1 <span id="sort-dev1" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('dev2')">Dev 2 <span id="sort-dev2" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('status')">Status <span id="sort-status" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('homologacao_iso')">Homologação <span id="sort-homologacao_iso" class="sort-icon">⇅</span></th>
+                            <th class="sortable" onclick="sortTable('producao_iso')">Produção <span id="sort-producao_iso" class="sort-icon">⇅</span></th>
+                            <th style="width: 180px;">Gantt</th>
+                            <th class="sortable" onclick="sortTable('observacao')">Observação Final <span id="sort-observacao" class="sort-icon">⇅</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. UPLOAD (Colapsado por padrão) -->
+    <div class="schedule-matrix-card collapsed" id="section-upload" style="border: 2px dashed var(--blue-accent);">
+        <div class="section-header-collapse" onclick="toggleSection('section-upload')">
+            <div class="upload-info">
+                <h3 style="margin: 0 0 2px 0; font-size: 14px; color: #ffffff;">📂 Atualizar Planilha de Projetos (.xlsx)</h3>
+                <p id="fileStatus" style="margin: 0; font-size: 11px; color: var(--text-secondary);">Carregue o arquivo Excel para atualizar automaticamente este painel.</p>
+            </div>
+            <div class="collapse-toggle-btn">▼</div>
+        </div>
+        <div class="collapse-body" style="margin-top: 12px; display: flex; justify-content: flex-end;">
+            <div>
+                <label for="excelFileInput" class="file-input-btn">📥 Carregar Excel</label>
+                <input type="file" id="excelFileInput" accept=".xlsx, .xls" onchange="handleFileSelect(event)" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('data-atual').innerText = 'Data: ' + new Date().toLocaleDateString('pt-BR');
+
+function toggleSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (section) section.classList.toggle('collapsed');
+}
+
+function toggleExportMenu() {
+    const menu = document.getElementById('exportMenuContent');
+    menu.classList.toggle('show');
+}
+
+window.addEventListener('click', function(e) {
+    if (!e.target.closest('.export-dropdown')) {
+        document.getElementById('exportMenuContent').classList.remove('show');
+    }
+});
+
+const today = new Date();
+let selectedStatuses = [];
+let teamSortColumn = "full_name";
+let teamSortAscending = true;
+let sortColumn = null;
+let sortAscending = true;
+
+let masterCollabList = [
+    { "full_name": "Samuel de Melo Santos Nascimento", "nickname": "Samuel" },
+    { "full_name": "Eduardo dos Santos", "nickname": "Eduardo" },
+    { "full_name": "Gabriel Nobrega Neri", "nickname": "Neri" },
+    { "full_name": "Eric Santos Castro", "nickname": "Eric" },
+    { "full_name": "Lucas Silva Araujo", "nickname": "Lucas BI" },
+    { "full_name": "Ricardo Henrique Leal Maciel", "nickname": "Ricardo" },
+    { "full_name": "Gabriel de Oliveira Alves", "nickname": "Gabriel" },
+    { "full_name": "Edmário Oliveira de Araujo", "nickname": "Edmario" },
+    { "full_name": "Djacy Neto", "nickname": "Djacy" },
+    { "full_name": "Yuri Mussi", "nickname": "Yuri" },
+    { "full_name": "Anderson Pereira de Sales", "nickname": "Sales" },
+    { "full_name": "Lucas Santos da Silva", "nickname": "Santos" },
+    { "full_name": "Thalia da Silva", "nickname": "Thalia" },
+    { "full_name": "Filipe Tárcio Herculano de Sousa", "nickname": "Tarcio" },
+    { "full_name": "Paulo Roberto Moreira", "nickname": "Paulo" },
+    { "full_name": "Samuel Pereira Brandão", "nickname": "Samuel Dev" },
+    { "full_name": "Nei Agripino Delfino Neto", "nickname": "Nei" },
+    { "full_name": "Leandro Gustavo Ferreira de Souza Almeida", "nickname": "Leandro" },
+    { "full_name": "Matheus Amaral Miranda", "nickname": "Amaral" },
+    { "full_name": "Patrício Godoy Flendes Pinto", "nickname": "Patricio" },
+    { "full_name": "Renan Gonçalves Queiroz SIlva", "nickname": "Renan" },
+    { "full_name": "Lucas de Matos Harzer Lopes", "nickname": "Lucas" },
+    { "full_name": "Bruno Moura", "nickname": "Bruno" },
+    { "full_name": "João Vitor de Souza Siqueira", "nickname": "João Vitor" },
+    { "full_name": "Carlos Vaz", "nickname": "Cadu" },
+    { "full_name": "Gabriel Rodrigues da Silva", "nickname": "Gabriel Rodrigues" },
+    { "full_name": "Fernando Francisco de Souza", "nickname": "Fernando" },
+    { "full_name": "Thierry Esteves Lima", "nickname": "Thierry" },
+    { "full_name": "Wendeel Marinho Butel", "nickname": "Wendeel" },
+    { "full_name": "Luiz Henrique", "nickname": "Luiz" },
+    { "full_name": "Guilherme Carneiro Carvalho", "nickname": "Guilherme" },
+    { "full_name": "Enzo", "nickname": "Enzo" },
+    { "full_name": "Felipe Pinheiro de Freitas", "nickname": "Felipe" }
+];
+
+function toggleStatusDropdown() {
+    const content = document.getElementById('multiSelectContent');
+    const btn = document.getElementById('multiSelectBtn');
+    if (content.classList.contains('show')) {
+        content.classList.remove('show');
+    } else {
+        const rect = btn.getBoundingClientRect();
+        content.style.top = (rect.bottom + 4) + 'px';
+        content.style.left = rect.left + 'px';
+        content.style.width = rect.width + 'px';
+        content.classList.add('show');
+    }
+}
+
+document.addEventListener('click', function(e) {
+    const dropdown = document.querySelector('.multi-select-dropdown');
+    const content = document.getElementById('multiSelectContent');
+    if (dropdown && !dropdown.contains(e.target) && !content.contains(e.target)) {
+        content.classList.remove('show');
+    }
+});
+
+function updateSelectedStatus() {
+    const checkboxes = document.querySelectorAll('#multiSelectContent input[type="checkbox"]');
+    selectedStatuses = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+    const btn = document.getElementById('multiSelectBtn');
+    if (selectedStatuses.length === 0) btn.innerText = 'Todos os Status';
+    else if (selectedStatuses.length === 1) btn.innerText = selectedStatuses[0];
+    else btn.innerText = `${selectedStatuses.length} Status Selecionados`;
+    filterTable();
+}
+
+let projectsData = [
+  { "id": 1, "topico": "ABC", "projeto": "KitDoc", "responsavel": "Leandro", "status": "Finalizado", "homologacao": "15/10/2026", "homologacao_iso": "2026-10-15", "producao": "20/10/2026", "producao_iso": "2026-10-20", "sm": "Patricio", "dev1": "Gabriel Rodrigues", "dev2": "-", "observacao": "Finalizado" },
+  { "id": 2, "topico": "ABC", "projeto": "Integrar FrontConsig V2 com função ABC", "responsavel": "Leandro", "status": "Desenvolvimento", "homologacao": "23/10/2026", "homologacao_iso": "2026-10-23", "producao": "26/10/2026", "producao_iso": "2026-10-26", "sm": "Ferrari", "dev1": "Edmario", "dev2": "-", "observacao": "Em andamento" },
+  { "id": 3, "topico": "ABC", "projeto": "Módulo de Cartão - Stark ( Tela Mockada )", "responsavel": "Matheus", "status": "Desenvolvimento", "homologacao": "30/10/2026", "homologacao_iso": "2026-10-30", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Eric", "dev1": "Wendeel", "dev2": "Luiz", "observacao": "Em desenvolvimento as telas mockadas" },
+  { "id": 4, "topico": "ABC", "projeto": "Único", "responsavel": "Matheus", "status": "Homologação", "homologacao": "09/10/2026", "homologacao_iso": "2026-10-09", "producao": "26/10/2026", "producao_iso": "2026-10-26", "sm": "-", "dev1": "Renan", "dev2": "Amaral", "observacao": "Em homologacao - 23-10" },
+  { "id": 5, "topico": "ABC", "projeto": "Mérito", "responsavel": "Matheus", "status": "Desenvolvimento", "homologacao": "30/10/2026", "homologacao_iso": "2026-10-30", "producao": "", "producao_iso": "", "sm": "-", "dev1": "Amaral", "dev2": "-", "observacao": "Testes bem avançados. Já esta mandando para Merito e Fundo de Passagem - EM ANDAMENTO" },
+  { "id": 6, "topico": "ABC", "projeto": "Webhook ABC", "responsavel": "Renan", "status": "Finalizado", "homologacao": "02/10/2026", "homologacao_iso": "2026-10-02", "producao": "13/10/2026", "producao_iso": "2026-10-13", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "" },
+  { "id": 7, "topico": "ABC", "projeto": "Banco de Dados ABC", "responsavel": "Renan", "status": "Finalizado", "homologacao": "02/10/2026", "homologacao_iso": "2026-10-02", "producao": "10/10/2026", "producao_iso": "2026-10-10", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "" },
+  { "id": 8, "topico": "ABC", "projeto": "Consulta de Margem e Averbação na ABC - na Mascara e Esteira (Piloto Siape)", "responsavel": "Renan", "status": "Homologação", "homologacao": "20/10/2026", "homologacao_iso": "2026-10-20", "producao": "30/10/2026", "producao_iso": "2026-10-30", "sm": "-", "dev1": "Renan", "dev2": "-", "observacao": "Desenvolvimento OK" },
+  { "id": 9, "topico": "ABC", "projeto": "FrontConsig V1 - Módulo Auditoria", "responsavel": "Renan", "status": "Desenvolvimento", "homologacao": "30/10/2026", "homologacao_iso": "2026-10-30", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Ferrari", "dev1": "Edmario", "dev2": "Gabriel Rodrigues", "observacao": "Ver c Edmario" },
+  { "id": 10, "topico": "ABC", "projeto": "APP Checklist Lançamento Apus", "responsavel": "Patricio", "status": "Homologação", "homologacao": "19/10/2026", "homologacao_iso": "2026-10-19", "producao": "26/10/2026", "producao_iso": "2026-10-26", "sm": "Patricio", "dev1": "Yuri", "dev2": "-", "observacao": "Compliance c Patrick e Patricio" },
+  { "id": 11, "topico": "Autbank", "projeto": "Paliativo - TED", "responsavel": "Patricio", "status": "Finalizado", "homologacao": "13/10/2026", "homologacao_iso": "2026-10-13", "producao": "23/10/2026", "producao_iso": "2026-10-23", "sm": "-", "dev1": "Nei", "dev2": "-", "observacao": "TED via arquivo = OK" },
+  { "id": 12, "topico": "Autbank", "projeto": "Paliativo - PIX", "responsavel": "Patricio", "status": "Aguardando", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "-", "dev1": "Nei", "dev2": "-", "observacao": "" },
+  { "id": 13, "topico": "Autbank", "projeto": "Paliativo - Monitoramento PIX Luby", "responsavel": "Renan", "status": "Aguardando", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "-", "dev1": "Nei", "dev2": "-", "observacao": "" },
+  { "id": 14, "topico": "Automações", "projeto": "Contratos Automaticos no Gestão de Carteira", "responsavel": "Leandro", "status": "Aguardando", "homologacao": "29/09/2026", "homologacao_iso": "2026-09-29", "producao": "30/10/2026", "producao_iso": "2026-10-30", "sm": "Neri", "dev1": "Gabriel", "dev2": "Thierry", "observacao": "" },
+  { "id": 15, "topico": "Automações", "projeto": "Sonar", "responsavel": "Patricio", "status": "Desenvolvimento", "homologacao": "23/10/2026", "homologacao_iso": "2026-10-23", "producao": "27/10/2026", "producao_iso": "2026-10-27", "sm": "-", "dev1": "Fernando", "dev2": "-", "observacao": "Fernando vai falar c Amaral e Leandro - 27-10" },
+  { "id": 16, "topico": "Automações", "projeto": "Checklist", "responsavel": "Renan", "status": "Desenvolvimento", "homologacao": "22/10/2026", "homologacao_iso": "2026-10-22", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Felipe", "dev1": "Lucas", "dev2": "Guilherme", "observacao": "Felipe mandar email formalizando q precisa" },
+  { "id": 17, "topico": "Automações", "projeto": "Ajustes Tela Averbação", "responsavel": "Renan", "status": "Verde", "homologacao": "", "homologacao_iso": "", "producao": "23/10/2026", "producao_iso": "2026-10-23", "sm": "-", "dev1": "Thalia", "dev2": "-", "observacao": "Projeto Beto - GovSP. Detalhe da compra de divida está com problema no Funcao - Caspar está vendo" },
+  { "id": 18, "topico": "AWS", "projeto": "Redução de Custo Teck", "responsavel": "Ferrari", "status": "Desenvolvimento", "homologacao": "26/08/2026", "homologacao_iso": "2026-08-26", "producao": "15/11/2026", "producao_iso": "2026-11-15", "sm": "Ferrari", "dev1": "Sales", "dev2": "-", "observacao": "" },
+  { "id": 19, "topico": "AWS", "projeto": "Redução de Custo Capital", "responsavel": "Ferrari", "status": "Desenvolvimento", "homologacao": "01/10/2026", "homologacao_iso": "2026-10-01", "producao": "30/11/2026", "producao_iso": "2026-11-30", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "" },
+  { "id": 20, "topico": "Boletos", "projeto": "Emissao de Boletos Capital", "responsavel": "Patricio", "status": "Andamento", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "Patricio", "dev1": "-", "dev2": "-", "observacao": "Ao finalizar o PIX , o Paulo fazer a instalacao dos modulos e fazer treinamento ( Patrick ciente )" },
+  { "id": 21, "topico": "Cloud", "projeto": "Licença Kiro", "responsavel": "Yuri", "status": "Andamento", "homologacao": "20/10/2026", "homologacao_iso": "2026-10-20", "producao": "", "producao_iso": "", "sm": "Yuri", "dev1": "-", "dev2": "-", "observacao": "Licença free ate o final do ano" },
+  { "id": 22, "topico": "Cloud", "projeto": "Contratação Antropic Enterprise x AWS", "responsavel": "Yuri", "status": "Andamento", "homologacao": "20/10/2026", "homologacao_iso": "2026-10-20", "producao": "", "producao_iso": "", "sm": "Yuri", "dev1": "-", "dev2": "-", "observacao": "Em andamento" },
+  { "id": 23, "topico": "Cloud", "projeto": "Contratação NTT Data x AWS", "responsavel": "Yuri", "status": "Andamento", "homologacao": "20/10/2026", "homologacao_iso": "2026-10-20", "producao": "", "producao_iso": "", "sm": "Yuri", "dev1": "-", "dev2": "-", "observacao": "Em andamento" },
+  { "id": 24, "topico": "Cloud", "projeto": "Resultado FinOps pela AWS", "responsavel": "Yuri", "status": "Andamento", "homologacao": "20/10/2026", "homologacao_iso": "2026-10-20", "producao": "", "producao_iso": "", "sm": "Yuri", "dev1": "-", "dev2": "-", "observacao": "Em andamento" },
+  { "id": 25, "topico": "Cloud", "projeto": "Migração dev e homolog para Equinix", "responsavel": "Yuri", "status": "Andamento", "homologacao": "10/10/2026", "homologacao_iso": "2026-10-10", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Yuri", "dev1": "-", "dev2": "-", "observacao": "Em andamento" },
+  { "id": 26, "topico": "ERP", "projeto": "Gestão de Carteira v2", "responsavel": "Leandro", "status": "Desenvolvimento", "homologacao": "20/10/2026", "homologacao_iso": "2026-10-20", "producao": "30/10/2026", "producao_iso": "2026-10-30", "sm": "Neri", "dev1": "Gabriel", "dev2": "Thierry", "observacao": "Conciliacao ate 30-10 e Cobrança / ReAnalise / Lancamento de Cartao ate o fim do ano" },
+  { "id": 27, "topico": "ERP", "projeto": "Sistema do RH", "responsavel": "Leandro", "status": "Andamento", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "Felipe", "dev1": "Gabriel Rodrigues", "dev2": "-", "observacao": "Felipe refinando o Escopo" },
+  { "id": 28, "topico": "ERP", "projeto": "Esteiras Front", "responsavel": "Patricio", "status": "Andamento", "homologacao": "02/11/2026", "homologacao_iso": "2026-11-02", "producao": "", "producao_iso": "", "sm": "Patrick", "dev1": "-", "dev2": "-", "observacao": "Apresentação realizada - Aguardando retorno" },
+  { "id": 29, "topico": "ERP", "projeto": "Migração do Convenio do Front1 para o V2", "responsavel": "Leandro", "status": "Andamento", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "Samuel", "dev1": "Guilherme", "dev2": "-", "observacao": "" },
+  { "id": 30, "topico": "FrontConsig v1", "projeto": "RH / JURIDICO - Integrar com TeckSign", "responsavel": "Leandro", "status": "Homologação", "homologacao": "20/10/2026", "homologacao_iso": "2026-10-20", "producao": "27/10/2026", "producao_iso": "2026-10-27", "sm": "Samuel", "dev1": "Santos", "dev2": "-", "observacao": "" },
+  { "id": 31, "topico": "FrontConsig V2", "projeto": "Discador", "responsavel": "Leandro", "status": "Finalizado", "homologacao": "16/10/2026", "homologacao_iso": "2026-10-16", "producao": "21/10/2026", "producao_iso": "2026-10-21", "sm": "Samuel", "dev1": "Guilherme", "dev2": "-", "observacao": "" },
+  { "id": 32, "topico": "FrontConsig V2", "projeto": "Ajuste Convênio e Relatório Gerencial", "responsavel": "Leandro", "status": "Finalizado", "homologacao": "01/10/2026", "homologacao_iso": "2026-10-01", "producao": "15/10/2026", "producao_iso": "2026-10-15", "sm": "Samuel", "dev1": "Guilherme", "dev2": "-", "observacao": "" },
+  { "id": 33, "topico": "FrontConsig V2", "projeto": "Ajuste Saldo Devedor", "responsavel": "Leandro", "status": "Finalizado", "homologacao": "01/10/2026", "homologacao_iso": "2026-10-01", "producao": "15/10/2026", "producao_iso": "2026-10-15", "sm": "Samuel", "dev1": "Thalia", "dev2": "Edmario", "observacao": "" },
+  { "id": 34, "topico": "FrontConsig V2", "projeto": "Ajustar Mensagens para Operador", "responsavel": "Leandro", "status": "Desenvolvimento", "homologacao": "27/10/2026", "homologacao_iso": "2026-10-27", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Ferrari", "dev1": "Edmario", "dev2": "-", "observacao": "" },
+  { "id": 35, "topico": "FrontConsig V2", "projeto": "Saldo Devedor - Melhorias - Dta de Atualizacao", "responsavel": "Ferrari", "status": "Desenvolvimento", "homologacao": "23/10/2026", "homologacao_iso": "2026-10-23", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Ferrari", "dev1": "Edmario", "dev2": "Thalia", "observacao": "" },
+  { "id": 36, "topico": "FrontConsig V2", "projeto": "RPA / Projeto BloqList - FunÇão", "responsavel": "Ferrari", "status": "Desenvolvimento", "homologacao": "21/10/2026", "homologacao_iso": "2026-10-21", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Samuel", "dev1": "Thalia", "dev2": "-", "observacao": "" },
+  { "id": 37, "topico": "FrontConsig V2", "projeto": "Simulador – Parcela Comprado + Margem", "responsavel": "Leandro", "status": "Andamento", "homologacao": "29/10/2026", "homologacao_iso": "2026-10-29", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Samuel", "dev1": "Thalia", "dev2": "-", "observacao": "Parcela comprada + Margem ( beto )" },
+  { "id": 38, "topico": "Função", "projeto": "Montar o BD do Funcao na Teck - eliminar a dependencia do Caspar Capital", "responsavel": "Renan", "status": "Stand-by", "homologacao": "23/10/2026", "homologacao_iso": "2026-10-23", "producao": "", "producao_iso": "", "sm": "-", "dev1": "Renan", "dev2": "-", "observacao": "Stand-by devido ao projeto ABC" },
+  { "id": 39, "topico": "Interno", "projeto": "ERP", "responsavel": "Leandro e Matheus", "status": "Stand-by", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "" },
+  { "id": 40, "topico": "Interno", "projeto": "Grafana", "responsavel": "Patricio", "status": "Stand-by", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "" },
+  { "id": 41, "topico": "Interno", "projeto": "Governaça IA - Uso descontrolado", "responsavel": "Todos", "status": "Stand-by", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "" },
+  { "id": 42, "topico": "Interno", "projeto": "Acessos ao reader2 Capital", "responsavel": "Leandro e Yuri", "status": "Aguardando", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "Caspar vai migrar para Equinix" },
+  { "id": 43, "topico": "Kit Doc", "projeto": "Gravar dados CCB - na Geração (controle de versionamento)", "responsavel": "Leandro", "status": "Homologação", "homologacao": "23/10/2026", "homologacao_iso": "2026-10-23", "producao": "26/10/2026", "producao_iso": "2026-10-26", "sm": "Amaral", "dev1": "Cadu", "dev2": "-", "observacao": "23-10 homologar com o solicitante" },
+  { "id": 44, "topico": "Kit Doc", "projeto": "Montar Interface de montagem de layout  de documento", "responsavel": "Leandro", "status": "Homologação", "homologacao": "23/10/2026", "homologacao_iso": "2026-10-23", "producao": "26/10/2026", "producao_iso": "2026-10-26", "sm": "Amaral", "dev1": "Cadu", "dev2": "-", "observacao": "23-10 homologar com o solicitante" },
+  { "id": 45, "topico": "Nexus", "projeto": "Nexus Etapa 01", "responsavel": "Ferrari", "status": "Homologação", "homologacao": "01/10/2026", "homologacao_iso": "2026-10-01", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Eric", "dev1": "-", "dev2": "-", "observacao": "" },
+  { "id": 46, "topico": "Portal Teck", "projeto": "Substituição do Serviço de PDF - Caspar", "responsavel": "Matheus", "status": "Finalizado", "homologacao": "10/10/2026", "homologacao_iso": "2026-10-10", "producao": "21/10/2026", "producao_iso": "2026-10-21", "sm": "Leandro", "dev1": "Wendeel", "dev2": "Sales", "observacao": "Finalizado" },
+  { "id": 47, "topico": "Portal Teck", "projeto": "Portal de Boleto para o Portal Teck", "responsavel": "Matheus", "status": "Homologação", "homologacao": "27/10/2026", "homologacao_iso": "2026-10-27", "producao": "29/10/2026", "producao_iso": "2026-10-29", "sm": "Amaral", "dev1": "Samuel", "dev2": "-", "observacao": "Ajustes feitos - apresentar para Maysa" },
+  { "id": 48, "topico": "Portal Teck", "projeto": "Solis CLT - Fundo de Passagem", "responsavel": "Matheus", "status": "Homologação", "homologacao": "19/10/2026", "homologacao_iso": "2026-10-19", "producao": "03/11/2026", "producao_iso": "2026-11-03", "sm": "Eduardo", "dev1": "Cadu", "dev2": "-", "observacao": "Em homologacao - Bruno aguardando o retorno da Solis dos testes efetuados" },
+  { "id": 49, "topico": "Regulatórios", "projeto": "KYC - na esteira do Funçao - Landim / Alberto", "responsavel": "Renan", "status": "Finalizado", "homologacao": "01/10/2026", "homologacao_iso": "2026-10-01", "producao": "07/10/2026", "producao_iso": "2026-10-07", "sm": "-", "dev1": "Renan", "dev2": "Thalia", "observacao": "" },
+  { "id": 50, "topico": "Regulatórios", "projeto": "Melhorias KYC", "responsavel": "Renan", "status": "Finalizado", "homologacao": "10/10/2026", "homologacao_iso": "2026-10-10", "producao": "21/10/2026", "producao_iso": "2026-10-21", "sm": "Samuel", "dev1": "Thalia", "dev2": "-", "observacao": "" },
+  { "id": 51, "topico": "Tecksign", "projeto": "TeckSign", "responsavel": "Matheus", "status": "Desenvolvimento", "homologacao": "23/10/2026", "homologacao_iso": "2026-10-23", "producao": "26/10/2026", "producao_iso": "2026-10-26", "sm": "Eric", "dev1": "Tarcio", "dev2": "Gustavo", "observacao": "" },
+  { "id": 52, "topico": "ÚNICO", "projeto": "Substituir a UNICO no portal teck pelo Tecksign", "responsavel": "Matheus", "status": "Desenvolvimento", "homologacao": "26/10/2026", "homologacao_iso": "2026-10-26", "producao": "30/10/2026", "producao_iso": "2026-10-30", "sm": "Amaral", "dev1": "Ricardo", "dev2": "Gustavo", "observacao": "Em andamento" },
+  { "id": 53, "topico": "ÚNICO", "projeto": "OCR - Leitura do RG ( Assinado ou não ) movimenta a esteira", "responsavel": "Matheus", "status": "Homologação", "homologacao": "20/10/2026", "homologacao_iso": "2026-10-20", "producao": "26/10/2026", "producao_iso": "2026-10-26", "sm": "Patricio", "dev1": "Amaral", "dev2": "Renan", "observacao": "Não consegue reprovar automatico - Precisa configurar a esteira no funcao" },
+  { "id": 54, "topico": "ÚNICO", "projeto": "Adequar o fluxo de assinatura para os indices de fraude", "responsavel": "Matheus", "status": "Homologação", "homologacao": "20/10/2026", "homologacao_iso": "2026-10-20", "producao": "26/10/2026", "producao_iso": "2026-10-26", "sm": "Patricio", "dev1": "Amaral", "dev2": "-", "observacao": "Não consegue reprovar automatico - Precisa configurar a esteira no funcao" },
+  { "id": 55, "topico": "Diretoria", "projeto": "Relatorio do Beto ( Gerencial )", "responsavel": "Patricio", "status": "Desenvolvimento", "homologacao": "", "homologacao_iso": "", "producao": "", "producao_iso": "", "sm": "-", "dev1": "-", "dev2": "-", "observacao": "" }
+];
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    document.getElementById('fileStatus').innerText = `🔄 Lendo arquivo: ${file.name}...`;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+            
+            if (workbook.SheetNames.includes('Colaboradores')) {
+                const sheetCollab = workbook.Sheets['Colaboradores'];
+                const rawCollabJson = XLSX.utils.sheet_to_json(sheetCollab, { header: 1, defval: "" });
+                let dynamicMasterList = [];
+                rawCollabJson.forEach(row => {
+                    let cols = row.filter(c => String(c).trim() !== '');
+                    if (cols.length >= 2) {
+                        dynamicMasterList.push({ full_name: String(cols[0]).trim(), nickname: String(cols[1]).trim() });
+                    } else if (cols.length === 1) {
+                        dynamicMasterList.push({ full_name: String(cols[0]).trim(), nickname: String(cols[0]).trim() });
+                    }
+                });
+                if (dynamicMasterList.length > 0) masterCollabList = dynamicMasterList;
+            }
+
+            let targetSheetName = workbook.SheetNames[0];
+            for (let name of workbook.SheetNames) {
+                if (name.toLowerCase() === 'colaboradores') continue;
+                const sheet = workbook.Sheets[name];
+                const jsonCheck = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+                if (jsonCheck && jsonCheck.length > 0) {
+                    const headerStr = jsonCheck[0].join(' ').toLowerCase();
+                    if (headerStr.includes('projeto') || headerStr.includes('tópico') || headerStr.includes('topico') || headerStr.includes('status')) {
+                        targetSheetName = name;
+                        break;
+                    }
+                }
+            }
+
+            const sheet = workbook.Sheets[targetSheetName];
+            const rawJson = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+            if (!rawJson || rawJson.length === 0) throw new Error("A planilha está vazia.");
+
+            projectsData = rawJson.map((row, index) => {
+                const cleanRow = {};
+                Object.keys(row).forEach(k => { if (k) cleanRow[k.trim()] = row[k]; });
+
+                const getVal = (possibleKeys) => {
+                    for (let pk of possibleKeys) {
+                        let foundKey = Object.keys(cleanRow).find(k => k.toLowerCase() === pk.toLowerCase());
+                        if (foundKey !== undefined && cleanRow[foundKey] !== undefined && cleanRow[foundKey] !== "") {
+                            return cleanRow[foundKey];
+                        }
+                    }
+                    return "";
+                };
+
+                const parseDateCell = (val) => {
+                    if (!val) return { str: "", iso: "" };
+                    if (val instanceof Date && !isNaN(val.getTime())) {
+                        return { str: val.toLocaleDateString('pt-BR'), iso: val.toISOString().split('T')[0] };
+                    }
+                    let s = String(val).trim();
+                    if (s.length >= 8 && !isNaN(new Date(s).getTime())) {
+                        let d = new Date(s);
+                        return { str: d.toLocaleDateString('pt-BR'), iso: d.toISOString().split('T')[0] };
+                    }
+                    return { str: s, iso: "" };
+                };
+
+                let hDate = parseDateCell(getVal(['Homologacao', 'Homologação', 'Prazo Homologacao']));
+                let pDate = parseDateCell(getVal(['Producao', 'Produção', 'Data Producao']));
+
+                return {
+                    id: index + 1,
+                    topico: String(getVal(['TÓPICO', 'TOPICO', 'Topico']) || 'Geral').trim(),
+                    projeto: String(getVal(['PROJETO', 'Projeto', 'Nome']) || 'Sem Nome').trim(),
+                    responsavel: String(getVal(['RESPONSÁVEL', 'Responsavel']) || 'Não Atribuído').trim(),
+                    status: String(getVal(['STATUS', 'Status']) || 'Pendente').trim(),
+                    homologacao: hDate.str,
+                    homologacao_iso: hDate.iso,
+                    producao: pDate.str,
+                    producao_iso: pDate.iso,
+                    sm: String(getVal(['SM', 'Scrum Master']) || '-').trim(),
+                    dev1: String(getVal(['Dev1', 'DEV1']) || '-').trim(),
+                    dev2: String(getVal(['Dev2', 'DEV2']) || '-').trim(),
+                    observacao: String(getVal(['Observação Final', 'Observacao', 'OBS']) || '').trim()
+                };
+            }).filter(p => p.projeto !== 'Sem Nome' && p.projeto !== '');
+
+            document.getElementById('fileStatus').innerText = `✅ Planilha "${file.name}" importada com sucesso! (${projectsData.length} projetos)`;
+            populateFilters();
+            filterTable();
+
+        } catch (error) {
+            console.error("Erro na importação:", error);
+            document.getElementById('fileStatus').innerText = `❌ Erro ao ler a planilha: ${error.message}`;
+            alert("Erro ao ler o arquivo Excel.");
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function getStatusBadge(status) {
+    switch(status) {
+        case 'Desenvolvimento': return '<span class="badge badge-desenvolvimento">Desenvolvimento</span>';
+        case 'Homologação': return '<span class="badge badge-homologacao">Homologação</span>';
+        case 'Finalizado': return '<span class="badge badge-finalizado">✅ Finalizado</span>';
+        case 'Andamento': return '<span class="badge badge-andamento">Andamento</span>';
+        case 'Stand-by': return '<span class="badge badge-standby">Stand-by</span>';
+        case 'Aguardando': return '<span class="badge badge-aguardando">Aguardando</span>';
+        case 'Verde': return '<span class="badge badge-verde">Verde</span>';
+        default: return `<span class="badge badge-pendente">${status || 'Pendente'}</span>`;
+    }
+}
+
+function getStatusColorClass(status) {
+    switch(status) {
+        case 'Desenvolvimento': return 'color-bg-desenvolvimento';
+        case 'Homologação': return 'color-bg-homologacao';
+        case 'Finalizado': return 'color-bg-finalizado';
+        case 'Andamento': return 'color-bg-andamento';
+        case 'Stand-by': return 'color-bg-standby';
+        case 'Aguardando': return 'color-bg-aguardando';
+        case 'Verde': return 'color-bg-verde';
+        default: return 'color-bg-desenvolvimento';
+    }
+}
+
+function sortTable(column) {
+    if (sortColumn === column) sortAscending = !sortAscending;
+    else { sortColumn = column; sortAscending = true; }
+    document.querySelectorAll('.sort-icon').forEach(icon => icon.innerText = '⇅');
+    const activeIcon = document.getElementById(`sort-${column}`);
+    if (activeIcon) activeIcon.innerText = sortAscending ? '▲' : '▼';
+    filterTable();
+}
+
+function sortTeamTable(column) {
+    if (teamSortColumn === column) teamSortAscending = !teamSortAscending;
+    else { teamSortColumn = column; teamSortAscending = true; }
+    renderGlobalPeopleGrid(lastFilteredDataForTeam || projectsData);
+}
+
+let lastFilteredDataForTeam = null;
+
+function calculateTopicPeople(allData) {
+    const topicPeopleMap = {};
+    allData.forEach(it => {
+        if (!topicPeopleMap[it.topico]) topicPeopleMap[it.topico] = new Set();
+        ['sm', 'dev1', 'dev2', 'responsavel'].forEach(k => {
+            let val = it[k];
+            if (val && val !== '-' && val !== 'Não Atribuído' && val !== 'Todos') {
+                val.split(',').forEach(p => { if (p.trim() && p.trim() !== '-') topicPeopleMap[it.topico].add(p.trim()); });
+            }
+        });
+    });
+    return topicPeopleMap;
+}
+
+function renderScheduleMatrix(data) {
+    const matrixHeaderTop = document.getElementById('matrixHeaderTop');
+    const matrixBody = document.getElementById('matrixBody');
+    matrixHeaderTop.innerHTML = '';
+    matrixBody.innerHTML = '';
+
+    const topicPeopleMap = calculateTopicPeople(projectsData);
+    const months = [
+        { key: '2026-09', label: 'Setembro / 2026', start: new Date('2026-09-01'), end: new Date('2026-09-30') },
+        { key: '2026-10', label: 'Outubro / 2026', start: new Date('2026-10-01'), end: new Date('2026-10-31') },
+        { key: '2026-11', label: 'Novembro / 2026', start: new Date('2026-11-01'), end: new Date('2026-11-30') }
+    ];
+
+    let topHeaders = `
+        <th style="width: 90px; background-color: #0f172a;">Tópico</th>
+        <th class="task-col" style="background-color: #0f172a;">Projeto</th>
+        <th class="devs-matrix-col" style="background-color: #0f172a;">Dev 1 / Dev 2</th>
+        <th class="obs-matrix-col" style="background-color: #0f172a;">Observação Final</th>
+    `;
+    months.forEach(m => { topHeaders += `<th class="schedule-header-month">${m.label}</th>`; });
+    matrixHeaderTop.innerHTML = topHeaders;
+
+    const grouped = {};
+    data.forEach(item => {
+        if (!grouped[item.topico]) grouped[item.topico] = [];
+        grouped[item.topico].push(item);
+    });
+
+    const timelineStartTime = months[0].start.getTime();
+    const timelineTotalDuration = (months[months.length - 1].end.getTime() + 86400000) - timelineStartTime;
+    const todayTime = today.getTime();
+    const todayPct = Math.max(0, Math.min(100, ((todayTime - timelineStartTime) / timelineTotalDuration) * 100));
+
+    const topics = Object.keys(grouped);
+    const phaseClasses = ['phase-1', 'phase-2', 'phase-3'];
+
+    topics.forEach((topic, topicIdx) => {
+        const items = grouped[topic];
+        const phaseClass = phaseClasses[topicIdx % phaseClasses.length];
+        const numPessoas = topicPeopleMap[topic] ? topicPeopleMap[topic].size : 0;
+        const pessoasLabel = numPessoas === 1 ? '1 pessoa' : `${numPessoas} pessoas`;
+
+        items.forEach((item, itemIdx) => {
+            const isCompleted = item.status === 'Finalizado';
+            const tr = document.createElement('tr');
+            if (isCompleted) tr.className = 'row-completed-highlight';
+
+            if (itemIdx === 0) {
+                const phaseTd = document.createElement('td');
+                phaseTd.className = `phase-col ${phaseClass}`;
+                phaseTd.rowSpan = items.length;
+                phaseTd.innerHTML = `<b>${topic || 'Geral'}</b><br><span style="font-size:9px; color:#60a5fa;">👤 ${pessoasLabel}</span>`;
+                tr.appendChild(phaseTd);
+            }
+
+            const taskTd = document.createElement('td');
+            taskTd.className = 'task-col';
+            taskTd.innerHTML = isCompleted ? `${item.projeto} <span title="Entregue e Finalizado" style="font-size:11px;">🏆</span>` : item.projeto;
+            tr.appendChild(taskTd);
+
+            const devsTd = document.createElement('td');
+            devsTd.className = 'devs-matrix-col';
+            let d1 = item.dev1 && item.dev1 !== '-' ? item.dev1 : '';
+            let d2 = item.dev2 && item.dev2 !== '-' ? item.dev2 : '';
+            devsTd.innerHTML = d1 && d2 ? `${d1}<br><span style="color:#94a3b8; font-size:9px;">${d2}</span>` : (d1 || d2 || '-');
+            tr.appendChild(devsTd);
+
+            const obsMatrixTd = document.createElement('td');
+            obsMatrixTd.className = 'obs-matrix-col';
+            obsMatrixTd.innerText = item.observacao || '-';
+            tr.appendChild(obsMatrixTd);
+
+            let hDate = item.homologacao_iso ? new Date(item.homologacao_iso) : null;
+            let prodDate = item.producao_iso ? new Date(item.producao_iso) : null;
+
+            const timelineTd = document.createElement('td');
+            timelineTd.colSpan = months.length;
+            timelineTd.className = 'timeline-container-cell';
+
+            let todayLineHtml = `<div class="today-indicator-line" style="left: ${todayPct}%;"></div>`;
+            let barsHtml = '';
+
+            if (hDate && prodDate) {
+                let startPct = Math.max(0, Math.min(100, ((hDate.getTime() - timelineStartTime) / timelineTotalDuration) * 100));
+                let endPct = Math.max(0, Math.min(100, ((prodDate.getTime() - timelineStartTime) / timelineTotalDuration) * 100));
+                let widthPct = Math.max(4, endPct - startPct);
+
+                let barClass = isCompleted ? 'timeline-row-bar timeline-completed-bar' : 'timeline-row-bar timeline-homolog-prod-bar';
+                let labelExtra = isCompleted ? ' ✨ (Entregue)' : '';
+
+                barsHtml += `
+                    <div class="timeline-date-label-left" style="left: ${startPct}%;">Hom: ${item.homologacao}</div>
+                    <div class="${barClass}" style="left: ${startPct}%; width: ${widthPct}%;">${labelExtra}</div>
+                    <div class="timeline-date-label-right" style="left: ${Math.min(100, startPct + widthPct)}%;">Prod: ${item.producao}</div>
+                `;
+            } else if (hDate) {
+                let leftPct = Math.max(0, Math.min(100, ((hDate.getTime() - timelineStartTime) / timelineTotalDuration) * 100));
+                let barClass = isCompleted ? 'timeline-row-bar timeline-completed-bar' : 'timeline-row-bar timeline-homolog-bar';
+                barsHtml += `
+                    <div class="timeline-date-label-left" style="left: ${leftPct}%;">Hom: ${item.homologacao}</div>
+                    <div class="${barClass}" style="left: ${leftPct}%; width: 12%;"></div>
+                `;
+            } else if (prodDate) {
+                let leftPct = Math.max(0, Math.min(100, ((prodDate.getTime() - timelineStartTime) / timelineTotalDuration) * 100));
+                let barClass = isCompleted ? 'timeline-row-bar timeline-completed-bar' : 'timeline-row-bar timeline-prod-bar';
+                barsHtml += `
+                    <div class="${barClass}" style="left: ${leftPct}%; width: 12%;"></div>
+                    <div class="timeline-date-label-right" style="left: ${Math.min(100, leftPct + 12)}%;">Prod: ${item.producao}</div>
+                `;
+            }
+
+            timelineTd.innerHTML = todayLineHtml + (barsHtml || '<span style="font-size:10px; color:#64748b; font-style:italic; margin-left:8px;">Sem datas</span>');
+            tr.appendChild(timelineTd);
+            matrixBody.appendChild(tr);
+        });
+    });
+}
+
+let chartInstance = null;
+let workloadChartInstance = null;
+
+function renderChart(data) {
+    const topics = [...new Set(data.map(d => d.topico || 'Geral'))].sort();
+    const resps = ['Leandro', 'Matheus', 'Patricio', 'Renan', 'Ferrari', 'Yuri', 'Outros'];
+    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
+
+    const datasets = resps.map((resp, i) => ({
+        label: resp,
+        data: topics.map(topic => data.filter(d => (d.topico || 'Geral') === topic && (resp === 'Outros' ? !['Leandro', 'Matheus', 'Patricio', 'Renan', 'Ferrari', 'Yuri'].some(r => d.responsavel.includes(r)) : d.responsavel.includes(resp))).length),
+        backgroundColor: colors[i]
+    }));
+
+    const ctx = document.getElementById('topicRespChart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: topics, datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                y: { stacked: true, ticks: { color: '#94a3b8', precision: 0 }, grid: { color: '#334155' } }
+            },
+            plugins: { legend: { labels: { color: '#f8fafc' } } }
+        }
+    });
+
+    let teamMembersMap = {};
+    let memberRolesMap = {};
+    data.forEach(d => {
+        ['sm', 'dev1', 'dev2'].forEach(roleKey => {
+            let val = d[roleKey];
+            if (val && val !== '-' && val !== 'undefined') {
+                val.split(',').forEach(n => {
+                    let name = n.trim();
+                    if (name && name !== '-') {
+                        teamMembersMap[name] = (teamMembersMap[name] || 0) + 1;
+                        if (!memberRolesMap[name]) memberRolesMap[name] = new Set();
+                        memberRolesMap[name].add(roleKey === 'sm' ? 'SM' : 'Dev');
+                    }
+                });
+            }
+        });
+    });
+
+    let rawTeamLabels = Object.keys(teamMembersMap).sort();
+    let teamLabels = rawTeamLabels.map(l => {
+        let roles = memberRolesMap[l] ? Array.from(memberRolesMap[l]).join(' / ') : '';
+        return roles ? [l, `(${roles})`] : [l];
+    });
+    let teamValues = rawTeamLabels.map(l => teamMembersMap[l]);
+
+    const ctxWorkload = document.getElementById('teamWorkloadChart').getContext('2d');
+    if (workloadChartInstance) workloadChartInstance.destroy();
+    workloadChartInstance = new Chart(ctxWorkload, {
+        type: 'bar',
+        data: { labels: teamLabels.length ? teamLabels : [['Nenhum']], datasets: [{ label: 'Projetos Atribuídos', data: teamValues.length ? teamValues : [0], backgroundColor: '#10b981' }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } },
+                y: { ticks: { color: '#94a3b8', precision: 0 }, grid: { color: '#334155' } }
+            },
+            plugins: { legend: { labels: { color: '#f8fafc' } } }
+        }
+    });
+}
+
+function renderGlobalPeopleGrid(filteredData) {
+    lastFilteredDataForTeam = filteredData;
+    const gridContainer = document.getElementById('globalPeopleGrid');
+    const unassignedGrid = document.getElementById('unassignedPeopleGrid');
+    const unassignedCountBadge = document.getElementById('unassignedCountBadge');
+    if (!gridContainer || !unassignedGrid) return;
+
+    const topicVal = document.getElementById('topicFilter').value;
+    const respVal = document.getElementById('respFilter').value;
+    const devVal = document.getElementById('devFilter').value;
+    const searchVal = document.getElementById('searchInput').value;
+    const hasActiveFilters = topicVal || respVal || devVal || searchVal || selectedStatuses.length > 0;
+
+    const mappedCollabs = masterCollabList.map(collab => {
+        const fullName = collab.full_name;
+        const nickName = collab.nickname;
+
+        const personProjects = filteredData.filter(it => {
+            const combined = ((it.sm || '') + (it.dev1 || '') + (it.dev2 || '') + (it.responsavel || '')).toLowerCase();
+            return combined.includes(nickName.toLowerCase()) || combined.includes(fullName.toLowerCase());
+        });
+
+        let roles = new Set();
+        personProjects.forEach(p => {
+            if ((p.sm || '').toLowerCase().includes(nickName.toLowerCase()) || (p.sm || '').toLowerCase().includes(fullName.toLowerCase())) roles.add('SM');
+            if ((p.dev1 || '').toLowerCase().includes(nickName.toLowerCase()) || (p.dev1 || '').toLowerCase().includes(fullName.toLowerCase()) || 
+                (p.dev2 || '').toLowerCase().includes(nickName.toLowerCase()) || (p.dev2 || '').toLowerCase().includes(fullName.toLowerCase())) roles.add('Dev');
+            if ((p.responsavel || '').toLowerCase().includes(nickName.toLowerCase()) || (p.responsavel || '').toLowerCase().includes(fullName.toLowerCase())) roles.add('Responsável');
+        });
+        let roleStr = Array.from(roles).join(' / ');
+
+        let activePersonProjects = personProjects.filter(p => p.status !== 'Finalizado');
+        let maxDateIso = null;
+        let maxDateStr = 'Não definida';
+        activePersonProjects.forEach(p => {
+            let dIso = p.producao_iso || p.homologacao_iso;
+            if (dIso) {
+                if (!maxDateIso || dIso > maxDateIso) {
+                    maxDateIso = dIso;
+                    maxDateStr = p.producao || p.homologacao;
+                }
+            }
+        });
+
+        return { 
+            ...collab, 
+            personProjects, 
+            roleStr, 
+            activeCount: activePersonProjects.length,
+            maxDateIso: maxDateIso || '9999-12-31',
+            maxDateStr 
+        };
+    });
+
+    const unassignedCollabs = masterCollabList.filter(collab => {
+        return !projectsData.some(it => {
+            const combined = ((it.sm || '') + (it.dev1 || '') + (it.dev2 || '') + (it.responsavel || '')).toLowerCase();
+            return combined.includes(collab.nickname.toLowerCase()) || combined.includes(collab.full_name.toLowerCase());
+        });
+    });
+
+    if (unassignedCountBadge) unassignedCountBadge.innerText = `${unassignedCollabs.length} membros`;
+
+    if (unassignedCollabs.length === 0) {
+        unassignedGrid.innerHTML = '<div style="color: #94a3b8; font-style: italic; font-size: 11px; padding: 4px;">Nenhum colaborador sem projeto no momento.</div>';
+    } else {
+        unassignedGrid.innerHTML = unassignedCollabs.map(c => `
+            <div style="background-color: #1e293b; border: 1px solid #334155; padding: 8px 10px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+                <div style="background-color: #10b981; color: #fff; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 10px; flex-shrink: 0;">${c.full_name.charAt(0).toUpperCase()}</div>
+                <div style="overflow: hidden;">
+                    <div style="font-weight: 700; color: #ffffff; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;" title="${c.full_name}">${c.full_name}</div>
+                    <div style="font-size: 10px; color: #94a3b8; font-family: monospace;">Apelido: ${c.nickname}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    const activeCollabs = hasActiveFilters ? mappedCollabs.filter(c => c.personProjects.length > 0) : mappedCollabs;
+
+    activeCollabs.sort((a, b) => {
+        let valA = a[teamSortColumn];
+        let valB = b[teamSortColumn];
+        if (typeof valA === 'string') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
+        if (valA < valB) return teamSortAscending ? -1 : 1;
+        if (valA > valB) return teamSortAscending ? 1 : -1;
+        return 0;
+    });
+
+    const sub = document.getElementById('globalPeopleSubtitle');
+    if (sub) sub.innerText = `👥 ${activeCollabs.length} Colaboradores exibidos (${unassignedCollabs.length} sem projetos nos filtros atuais)`;
+
+    const getIcon = (col) => teamSortColumn !== col ? '⇅' : (teamSortAscending ? '▲' : '▼');
+
+    let tableHtml = `
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+                <thead>
+                    <tr style="background-color: #0f172a; border-bottom: 2px solid #334155;">
+                        <th onclick="sortTeamTable('full_name')" style="padding: 10px; color: var(--text-secondary); width: 220px; cursor:pointer;">Colaborador (Nome Oficial) <span style="font-size:9px; color:var(--blue-accent);">${getIcon('full_name')}</span></th>
+                        <th onclick="sortTeamTable('nickname')" style="padding: 10px; color: var(--text-secondary); width: 110px; cursor:pointer;">Apelido <span style="font-size:9px; color:var(--blue-accent);">${getIcon('nickname')}</span></th>
+                        <th onclick="sortTeamTable('roleStr')" style="padding: 10px; color: var(--text-secondary); width: 130px; cursor:pointer;">Papéis Atribuídos <span style="font-size:9px; color:var(--blue-accent);">${getIcon('roleStr')}</span></th>
+                        <th onclick="sortTeamTable('maxDateIso')" style="padding: 10px; color: var(--text-secondary); width: 150px; cursor:pointer;">Ficará Livre Em <span style="font-size:9px; color:var(--blue-accent);">${getIcon('maxDateIso')}</span></th>
+                        <th style="padding: 10px; color: var(--text-secondary);">Projetos Vinculados</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    activeCollabs.forEach(collab => {
+        const fullName = collab.full_name;
+        const nickName = collab.nickname;
+        const personProjects = collab.personProjects;
+        const roleStr = collab.roleStr;
+        const maxDateStr = collab.maxDateStr;
+        const activeCount = collab.activeCount;
+
+        let roleBadgeHtml = roleStr ? `<span style="background-color:rgba(59,130,246,0.2); color:#60a5fa; border:1px solid #3b82f6; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:600;">${roleStr}</span>` : '<span style="color:#10b981; font-style:italic; font-weight:600;">Disponível</span>';
+
+        let freeHtml = activeCount > 0 
+            ? `<div style="display:flex; align-items:center; gap:4px; color:#38bdf8; font-weight:700;"><span style="font-size:13px;">⏳</span> ${maxDateStr}</div>` 
+            : `<div style="display:flex; align-items:center; gap:4px; color:#10b981; font-weight:600;"><span style="font-size:13px;">🎉</span> Disponível</div>`;
+
+        const projBadges = personProjects.map(p => {
+            let prevStr = p.producao || p.homologacao || 'A definir';
+            return `<div style="background-color:#172033; border:1px solid #334155; padding:6px 8px; border-radius:6px; margin-bottom:4px; font-size:11px;">
+                <div style="font-weight:600; color:#f8fafc;">📌 [${p.topico || 'Geral'}] ${p.projeto}</div>
+                <div style="display:flex; justify-content:space-between; margin-top:3px; font-size:10px; color:var(--text-secondary);">
+                    <span>Status: ${p.status || 'Pendente'}</span>
+                    <span style="color:#60a5fa; font-weight:650;">Previsão: ${prevStr}</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        tableHtml += `
+            <tr style="border-bottom: 1px solid #334155;">
+                <td style="padding: 10px; vertical-align: middle;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="background-color:#2563eb; color:#fff; width:30px; height:30px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-weight:bold; font-size:12px; flex-shrink: 0;">${fullName.charAt(0).toUpperCase()}</div>
+                        <div>
+                            <div style="font-weight:700; color: #ffffff; font-size: 12px;">${fullName}</div>
+                            <div style="margin-top: 4px;"><span style="background-color:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid #3b82f6; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:600;">${personProjects.length} projeto(s)</span></div>
+                        </div>
+                    </div>
+                </td>
+                <td style="padding: 10px; vertical-align: middle; color: #94a3b8; font-family: monospace;">${nickName}</td>
+                <td style="padding: 10px; vertical-align: middle;">${roleBadgeHtml}</td>
+                <td style="padding: 10px; vertical-align: middle;">${freeHtml}</td>
+                <td style="padding: 10px; vertical-align: middle;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">${projBadges || '<span style="color:#64748b; font-style:italic;">Nenhum projeto vinculado</span>'}</div>
+                </td>
+            </tr>
+        `;
+    });
+
+    tableHtml += `</tbody></table></div>`;
+    gridContainer.innerHTML = tableHtml;
+}
+
+function renderTable(data) {
+    renderGlobalPeopleGrid(data);
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+
+    const minTime = new Date("2026-09-01").getTime();
+    const maxTime = new Date("2026-11-30").getTime();
+    const totalDuration = maxTime - minTime;
+
+    data.forEach(item => {
+        let targetIso = item.producao_iso || item.homologacao_iso;
+        let targetStr = item.producao ? `🚀 ${item.producao}` : (item.homologacao || '');
+        let ganttHtml = targetIso ? `<div class="gantt-track"><div class="gantt-bar ${getStatusColorClass(item.status)}" style="width: ${Math.max(12, Math.min(((new Date(targetIso).getTime() - minTime) / totalDuration) * 100, 100)).toFixed(1)}%;">${targetStr}</div></div>` : '-';
+
+        const tr = document.createElement('tr');
+        if (item.status === 'Finalizado') tr.className = 'row-completed-highlight';
+
+        tr.innerHTML = `
+            <td><b>${item.topico || 'Geral'}</b></td>
+            <td>${item.projeto}</td>
+            <td>${item.responsavel}</td>
+            <td><b>${item.sm || '-'}</b></td>
+            <td>${item.dev1 || '-'}</td>
+            <td>${item.dev2 || '-'}</td>
+            <td>${getStatusBadge(item.status)}</td>
+            <td>${item.homologacao || '-'}</td>
+            <td>${item.producao ? '🚀 ' + item.producao : '-'}</td>
+            <td class="gantt-cell">${ganttHtml}</td>
+            <td class="obs-text">${item.observacao || '-'}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('m-total').innerText = data.length;
+    document.getElementById('m-desenv').innerText = data.filter(d => d.status === 'Desenvolvimento').length;
+    document.getElementById('m-homolog').innerText = data.filter(d => d.status === 'Homologação').length;
+    document.getElementById('m-done').innerText = data.filter(d => d.status === 'Finalizado').length;
+    document.getElementById('m-others').innerText = data.filter(d => ['Andamento', 'Stand-by', 'Aguardando', 'Verde'].includes(d.status)).length;
+
+    renderScheduleMatrix(data);
+    renderChart(data);
+}
+
+function populateFilters() {
+    const topics = [...new Set(projectsData.map(p => p.topico || 'Geral'))].sort();
+    const resps = [...new Set(projectsData.map(p => p.responsavel))].sort();
+    let devsSet = new Set();
+    projectsData.forEach(p => {
+        if (p.dev1 && p.dev1 !== '-') devsSet.add(p.dev1);
+        if (p.dev2 && p.dev2 !== '-') devsSet.add(p.dev2);
+    });
+
+    const topicSelect = document.getElementById('topicFilter');
+    topicSelect.innerHTML = '<option value="">Todos os Tópicos</option>';
+    topics.forEach(t => { topicSelect.innerHTML += `<option value="${t}">${t}</option>`; });
+
+    const respSelect = document.getElementById('respFilter');
+    respSelect.innerHTML = '<option value="">Todos os Responsáveis</option>';
+    resps.forEach(r => { respSelect.innerHTML += `<option value="${r}">${r}</option>`; });
+
+    const devSelect = document.getElementById('devFilter');
+    devSelect.innerHTML = '<option value="">Todos os Devs</option>';
+    [...devsSet].sort().forEach(d => { devSelect.innerHTML += `<option value="${d}">${d}</option>`; });
+}
+
+function filterTable() {
+    const searchVal = document.getElementById('searchInput').value.toLowerCase();
+    const topicVal = document.getElementById('topicFilter').value;
+    const respVal = document.getElementById('respFilter').value;
+    const devVal = document.getElementById('devFilter').value;
+
+    let filtered = projectsData.filter(item => {
+        const matchesSearch = (item.projeto + item.sm + item.dev1 + item.dev2 + item.observacao).toLowerCase().includes(searchVal);
+        const matchesTopic = topicVal === '' || item.topico === topicVal;
+        const matchesResp = respVal === '' || item.responsavel === respVal;
+        const matchesDev = devVal === '' || item.dev1 === devVal || item.dev2 === devVal;
+        const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(item.status);
+        return matchesSearch && matchesTopic && matchesResp && matchesDev && matchesStatus;
+    });
+
+    renderTable(filtered);
+}
+
+function exportView(viewType) {
+    document.getElementById('exportMenuContent').classList.remove('show');
+    
+    const secEquipe = document.getElementById('section-equipe');
+    const secTabela = document.getElementById('section-tabela');
+    const secUpload = document.getElementById('section-upload');
+    const secGraficos = document.getElementById('section-graficos');
+    const secCronograma = document.getElementById('section-cronograma');
+    const secFiltros = document.getElementById('section-filters');
+
+    let targetElement = document.getElementById('captureContainer');
+    let fileName = 'Painel_TECK.png';
+
+    if (viewType === 'graficos-cronograma') {
+        fileName = 'Visao_Grafica_Cronograma_TECK.png';
+        secEquipe.style.display = 'none';
+        secTabela.style.display = 'none';
+        secUpload.style.display = 'none';
+        secFiltros.style.display = 'none';
+    } else if (viewType === 'equipe') {
+        fileName = 'Visao_Geral_Equipe_TECK.png';
+        secFiltros.style.display = 'none';
+        secGraficos.style.display = 'none';
+        secCronograma.style.display = 'none';
+        secTabela.style.display = 'none';
+        secUpload.style.display = 'none';
+        if (secEquipe.classList.contains('collapsed')) secEquipe.classList.remove('collapsed');
+    } else if (viewType === 'tabela') {
+        fileName = 'Tabela_Executiva_Projetos_TECK.png';
+        secFiltros.style.display = 'none';
+        secGraficos.style.display = 'none';
+        secCronograma.style.display = 'none';
+        secEquipe.style.display = 'none';
+        secUpload.style.display = 'none';
+        if (secTabela.classList.contains('collapsed')) secTabela.classList.remove('collapsed');
+    }
+
+    setTimeout(() => {
+        html2canvas(targetElement, { scale: 2, useCORS: true, backgroundColor: '#0f172a' }).then(canvas => {
+            secFiltros.style.display = 'block';
+            secGraficos.style.display = 'block';
+            secCronograma.style.display = 'block';
+            secEquipe.style.display = 'block';
+            secTabela.style.display = 'block';
+            secUpload.style.display = 'block';
+            if (viewType === 'equipe') secEquipe.classList.add('collapsed');
+            if (viewType === 'tabela') secTabela.classList.add('collapsed');
+
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }, 200);
+}
+
+populateFilters();
+renderTable(projectsData);
+</script>
+
+</body>
+</html>
